@@ -2,7 +2,7 @@
 
 > **⚠️  Warning**
 >
-> Market making is a risky activity and running this bot can lead to lose of funds.
+> Market making is a risky activity and running this bot can lead to loss of funds.
 
 Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implements _fixed spread versus market price strategy_.
 

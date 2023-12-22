@@ -1,0 +1,135 @@
+cabal-version: 3.4
+name:          geniusyield-orderbot-framework
+version:       0.1.0.0
+build-type:    Simple
+
+-- Common sections
+
+common common-ghc-opts
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-do-bind
+    -Wno-partial-type-signatures -Wincomplete-record-updates
+    -Wmissing-deriving-strategies -Wno-name-shadowing -Wunused-foralls
+    -Wno-unticked-promoted-constructors -fprint-explicit-foralls
+    -fprint-explicit-kinds
+
+common common-deps
+  build-depends:
+    , aeson
+    , aeson-pretty
+    , base
+    , bytestring
+    , containers
+    , atlas-cardano
+    , mtl
+    , serialise
+    , text
+    , time
+    , random
+    , random-fu
+    , mwc-random
+
+common common-lang
+  default-language: Haskell2010
+  default-extensions:
+    ApplicativeDo
+    BangPatterns
+    BinaryLiterals
+    ConstrainedClassMethods
+    ConstraintKinds
+    DataKinds
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DoAndIfThenElse
+    EmptyCase
+    EmptyDataDecls
+    EmptyDataDeriving
+    ExistentialQuantification
+    ExplicitForAll
+    FlexibleContexts
+    FlexibleInstances
+    GADTSyntax
+    GeneralisedNewtypeDeriving
+    HexFloatLiterals
+    ImplicitPrelude
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MonomorphismRestriction
+    MultiParamTypeClasses
+    NamedFieldPuns
+    MultiWayIf
+    NoStarIsType
+    NumericUnderscores
+    OverloadedStrings
+    PatternGuards
+    PatternSynonyms
+    PolyKinds
+    PostfixOperators
+    RankNTypes
+    RecordWildCards
+    RelaxedPolyRec
+    RoleAnnotations
+    ScopedTypeVariables
+    StandaloneDeriving
+    StandaloneKindSignatures
+    TraditionalRecordSyntax
+    TupleSections
+    TypeApplications
+    TypeFamilyDependencies
+    TypeOperators
+    UnboxedTuples
+    ViewPatterns
+
+-- Build targets
+
+library            common
+  import:          common-lang
+  import:          common-deps
+  import:          common-ghc-opts
+  visibility:      public
+  hs-source-dirs:  lib-common
+  build-depends:
+    , cardano-api
+    , postgresql-simple
+    , postgresql-simple-url
+    , geniusyield-dex-api
+  exposed-modules:
+    GeniusYield.OrderBot.Types
+  ghc-options:
+    -O2
+
+library            datasource
+  import:          common-lang
+  import:          common-ghc-opts
+  visibility:      public
+  hs-source-dirs:  lib-datasource
+  build-depends:
+    , base
+    , atlas-cardano
+    , geniusyield-orderbot-framework:common
+    , geniusyield-dex-api
+  signatures:
+    GeniusYield.OrderBot.DataSource
+
+library            orderbook
+  import:          common-lang
+  import:          common-ghc-opts
+  visibility:      public
+  hs-source-dirs:  lib-orderbook
+  build-depends:
+    , base
+    , aeson
+    , atlas-cardano
+    , geniusyield-orderbot-framework:common
+    , geniusyield-orderbot-framework:datasource
+    , geniusyield-dex-api
+  signatures:
+    GeniusYield.OrderBot.OrderBook

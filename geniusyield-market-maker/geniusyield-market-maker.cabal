@@ -1,0 +1,148 @@
+cabal-version:      3.4
+name:               geniusyield-market-maker
+version:            0.1.0.0
+build-type:         Simple
+synopsis:           Program to place buy and sell orders between two tokens on the GY DEX.
+
+-- Common sections
+
+common common-ghc-opts
+  ghc-options:
+    -Wall -Wcompat -Wincomplete-uni-patterns -Wno-unused-do-bind
+    -Wno-partial-type-signatures -Wincomplete-record-updates
+    -Wmissing-deriving-strategies -Wno-name-shadowing -Wunused-foralls
+    -Wno-unticked-promoted-constructors -fprint-explicit-foralls
+    -fprint-explicit-kinds
+
+common common-deps
+  build-depends:
+    , aeson
+    , base
+    , bytestring
+    , containers
+    , filepath
+    , atlas-cardano
+    , geniusyield-orderbot-framework:common
+    , mtl
+    , serialise
+    , split
+    , text
+    , mwc-random
+
+common common-lang
+  default-language: Haskell2010
+  default-extensions:
+    ApplicativeDo
+    BangPatterns
+    BinaryLiterals
+    ConstrainedClassMethods
+    ConstraintKinds
+    DataKinds
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveFoldable
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    DoAndIfThenElse
+    EmptyCase
+    EmptyDataDecls
+    EmptyDataDeriving
+    ExistentialQuantification
+    ExplicitForAll
+    FlexibleContexts
+    FlexibleInstances
+    GADTSyntax
+    GeneralisedNewtypeDeriving
+    HexFloatLiterals
+    ImplicitPrelude
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MonomorphismRestriction
+    MultiParamTypeClasses
+    NoStarIsType
+    NamedFieldPuns
+    NumericUnderscores
+    OverloadedStrings
+    PatternGuards
+    PatternSynonyms
+    PolyKinds
+    PostfixOperators
+    RankNTypes
+    RecordWildCards
+    RelaxedPolyRec
+    RoleAnnotations
+    ScopedTypeVariables
+    StandaloneDeriving
+    StandaloneKindSignatures
+    TraditionalRecordSyntax
+    TupleSections
+    TypeApplications
+    TypeFamilyDependencies
+    TypeOperators
+    UnboxedTuples
+    UnicodeSyntax
+    ViewPatterns
+
+library            datasource-providers
+  import:          common-lang
+  import:          common-deps
+  import:          common-ghc-opts
+  hs-source-dirs:  ../impl/datasource-providers
+  build-depends:
+    , geniusyield-orderbot-framework:common
+    , geniusyield-dex-api
+  exposed-modules: GeniusYield.OrderBot.DataSource.Providers
+
+library            orderbook-annset
+  import:          common-lang
+  import:          common-deps
+  import:          common-ghc-opts
+  hs-source-dirs:  ../impl/orderbook-annset
+  build-depends:
+    , geniusyield-orderbot-framework:common
+    , geniusyield-orderbot-framework:datasource
+    , geniusyield-annset
+    , geniusyield-dex-api
+  exposed-modules:
+    GeniusYield.OrderBot.OrderBook.AnnSet
+
+-- Build targets
+
+executable geniusyield-market-maker-exe
+    import:          common-lang
+    import:          common-deps
+    import:          common-ghc-opts
+    main-is:          Main.hs
+    other-modules: GeniusYield.MarketMaker.MakerBotConfig
+                 , GeniusYield.MarketMaker.MakerBot
+                 , GeniusYield.MarketMaker.Orphans
+                 , GeniusYield.MarketMaker.Prices
+                 , GeniusYield.MarketMaker.Strategies
+                 , GeniusYield.MarketMaker.Utils
+    build-depends:
+        , geniusyield-orderbot-framework:common
+        , geniusyield-market-maker:datasource-providers
+        , geniusyield-market-maker:orderbook-annset
+        , deriving-aeson
+        , envy
+        , random-fu
+        , MonadRandom
+        , plutus-core
+        , geniusyield-dex-api
+        , geniusyield-annset
+        , plutus-ledger-api
+        , random
+        , vector
+        , ply-core
+        , cardano-api
+        , maestro-sdk
+    hs-source-dirs:   ., src
+    ghc-options:      -Wall
+    default-language: Haskell2010
+    mixins: geniusyield-market-maker:orderbook-annset requires
+              (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)

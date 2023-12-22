@@ -1,0 +1,54 @@
+{- |
+Module: GeniusYield.OrderBot.DataSource
+Synopsis: The data source interface for getting information on orders and liquidity positions.
+Description: These are the types and queries that should be necessary to establish connection
+to a _data source_ and fetch information on DEX orders and liquidity positions.
+-}
+signature GeniusYield.OrderBot.DataSource
+    ( Connection
+    , connectDB
+    , closeDB
+    , withEachAssetOrders
+    ) where
+
+import Prelude                          ( IO )
+
+import GeniusYield.Types                ( GYNetworkId, GYProviders )
+import GeniusYield.OrderBot.Types       ( OrderAssetPair, OrderInfo
+                                        , OrderType (BuyOrder, SellOrder)
+                                        )
+
+import GeniusYield.Api.Dex.Types        ( HasDexScripts )
+import GeniusYield.Api.Dex.PartialOrder ( PORefs )
+-- | Means to connect to a data source for orders/liquidity positions.
+data Connection
+
+{- | Given a path to the expected config file, connect to a data source serving
+     information about GY DEX orders on the blockchain.
+-}
+connectDB :: GYNetworkId -> GYProviders -> IO Connection
+
+-- | Close the DB connection.
+closeDB :: Connection -> IO ()
+
+{- | Fetch all unique DEX order asset pairings, and for each such asset pair, fetch all buy and sell orders.
+
+It takes a list of asset pairs. Only orders operating these asset class pairs, are
+retrieved. This can increase throughput when utilize effectively.
+
+The distinction between "buy" and "sell" is further explained in "GeniusYield.OrderBot.Types.OrderInfo"
+and "GeniusYield.OrderBot.Types.OrderAssetPair".
+
+Fetched information is fed into given accumulator function one by one, in no particular order. The accumulator
+function's results will be accumulated, starting with the given accumulator, and returned wrapped within an
+IO action.
+-}
+withEachAssetOrders
+    :: HasDexScripts d
+    => Connection
+    -> d
+    -> PORefs
+    -> [OrderAssetPair]
+    -> (a -> (# OrderAssetPair, [OrderInfo 'BuyOrder], [OrderInfo 'SellOrder] #) -> a)
+    -> a
+    -> IO a

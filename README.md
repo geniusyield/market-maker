@@ -1,6 +1,7 @@
 # Market maker bot
 
-> **⚠️* Warning**
+> ⚠️* **Warning**
+>
 > Market making is a risky activity and running this bot can lead to lose of funds.
 
 Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implements _fixed spread versus market price strategy_.
@@ -8,9 +9,10 @@ Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implem
 ## Fixed spread vs market price strategy
 
 > **ⓘ Order classification and price**
+>
 > We call non-ada token as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
 > 
-> _Price_ is described in display unit[^1] of currency per display unit of commodity token.
+> _Price_ is described in display unit[^1] of currency token per display unit of commodity token.
 
 Given a market price `M` and a variable `δ` defined as _spread_, bot would place following orders where exact number and volume is determined by configuration:
 
@@ -31,7 +33,8 @@ If market price has drifted way higher (_"way higher"_ as directed by configurat
 
 First, you need to setup the necessary tooling to work with [haskell.nix](https://github.com/input-output-hk/haskell.nix), then simply run `nix develop`, and it will drop you into a shell with all the necessary tools. Once inside the environment, you can build the order bot with `cabal build all`.
 
-> **ⓘ **
+> **ⓘ**
+>
 > Nix is not necessary if your environment already has the right set of dependencies. One may look at the [CI file](https://github.com/geniusyield/atlas/blob/main/.github/workflows/haskell.yml) for our transaction building tool, which current project also relies on, to see dependencies used.
 
 Then the bot can be ran with following command: `cabal run geniusyield-market-maker-exe -- Run my-atlas-config.json my-maker-bot-config.json` where `my-atlas-config.json` is the configuration for [Atlas](https://github.com/geniusyield/atlas) and `my-maker-bot-config.json` is the configuration of our market maker bot.
@@ -92,7 +95,7 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
 ```
 * `mbc_user` describes individual bot, it specifies `ur_s_key_path` which is the path to signing key file and `ur_coll` which is the UTxO reserved as collateral.
 * Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is.
-* `mbc_delay`: Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
+* `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
 * `mbc_price_config` gives the configuration on how to get market price using https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc Maestro endpoint, for a token.
   * `pc_api_key` is the Maestro API key.
   * `pc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
@@ -105,9 +108,9 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
   * `sc_token_volume` specifies following:
     * `tv_sell_min_vol` - Amount of commodity tokens (in lowest possible denomination) that order must at least offer.
     * `tv_buy_min_vol` - Amount of currency tokens (in lovelaces) that order must at least offer.
-    * `tv_sell_budget` - Total amount of commodity tokens that bot can cumulatively offer in the orders. In every iteration, bot determines the number of commodity tokens locked in the orders and subtracts it from `tv_sell_budget` field, let's call the obtained number `asb` (short for _available sell budget_) then it determines number of sell orders placed to be `⌊asb / tv_sell_min_vol⌋ = ns` where `ns` is short of _n_umber of _s_ell orders. Now bot would place `ns` sell orders, each having offer amount as `⌊asb / ns⌋`.
+    * `tv_sell_budget` - Total amount of commodity tokens that bot can cumulatively offer in the orders. In every iteration, bot determines the number of commodity tokens locked in the orders and subtracts it from `tv_sell_budget` field, let's call the obtained number `asb` (short for _available sell budget_) then it determines number of sell orders placed to be `⌊asb / tv_sell_min_vol⌋ = ns` where `ns` is short of number of sell orders. Now bot would place `ns` sell orders, each having offer amount as `⌊asb / ns⌋`.
     * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
-    * `tv_sell_vol_threshold` - this is related `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would place a new sell order, only if `tv_sell_vol_threshold` is greater than `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would place new buy orders only if `tv_buy_vol_threshold` is greater than `BV`.
+    * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
 
 ## Canceling all the orders
 
@@ -115,6 +118,6 @@ If you want to cancel orders placed by the simulator you can run `cabal run geni
 
 ## Known Issues
 
-* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now bot can place remaining ones in next iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where bot has multiple orders but at same price.
+* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now bot can place remaining ones in next iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where bot might have multiple orders at the same price.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).

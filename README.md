@@ -100,10 +100,21 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
   * `pc_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for them, one can override the token given by `mpo_commodity_token` to pair with commodity token as described by `mpo_pair` & `mpo_commodity_is_first` respectively. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
 * `mbc_strategy_config` determines parameters for strategy:
 
-  * `sc_spread`: Ratio representing `δ` as described before.
+  * `sc_spread` - Ratio representing `δ` as described before.
+  * `sc_cancel_threshold_product` - If the price in buy order is less than `(1 - sc_cancel_threshold_product * δ) * M`, then it is canceled. Likewise if the price in sell order is greater than `(1 + sc_cancel_threshold_product * δ) * M` then it is canceled.
+  * `sc_token_volume` specifies following:
+    * `tv_sell_min_vol` - Amount of commodity tokens (in lowest possible denomination) that order must at least offer.
+    * `tv_buy_min_vol` - Amount of currency tokens (in lovelaces) that order must at least offer.
+    * `tv_sell_budget` - Total amount of commodity tokens that bot can cumulatively offer in the orders. In every iteration, bot determines the number of commodity tokens locked in the orders and subtracts it from `tv_sell_budget` field, let's call the obtained number `asb` (short for _available sell budget_) then it determines number of sell orders placed to be `⌊asb / tv_sell_min_vol⌋ = ns` where `ns` is short of _n_umber of _s_ell orders. Now bot would place `ns` sell orders, each having offer amount as `⌊asb / ns⌋`.
+    * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
+    * `tv_sell_vol_threshold` - this is related `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would place a new sell order, only if `tv_sell_vol_threshold` is greater than `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would place new buy orders only if `tv_buy_vol_threshold` is greater than `BV`.
 
 ## Canceling all the orders
 
 If you want to cancel orders placed by the simulator you can run `cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json`.
+
+## Known Issues
+
+* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now bot can place remaining ones in next iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where bot has multiple orders but at same price.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).

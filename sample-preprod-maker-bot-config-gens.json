@@ -1,0 +1,45 @@
+{
+  "mbc_user": {
+    "ur_s_key_path": "path-to-skey",
+    "ur_coll": "tx-id#tx-ix"
+  },
+  "mbc_fp_nft_policy": "compiled-scripts/minting-policy",
+  "mbc_fp_order_validator": "compiled-scripts/partial-order",
+  "mbc_po_config_addr": "addr_test1wrgvy8fermjrruaf7fnndtmpuw4xx4cnvfqjp5zqu8kscfcvh32qk",
+  "mbc_po_refs": {
+    "por_ref_nft": "fae686ea8f21d567841d703dea4d4221c2af071a6f2b433ff07c0af2.8309f9861928a55d37e84f6594b878941edce5e351f7904c2c63b559bde45c5c",
+    "por_val_ref": "be6f8dc16d4e8d5aad566ff6b5ffefdda574817a60d503e2a0ea95f773175050#2",
+    "por_mint_ref": "be6f8dc16d4e8d5aad566ff6b5ffefdda574817a60d503e2a0ea95f773175050#1"
+  },
+  "mbc_delay": 120000000,
+  "mbc_price_config": {
+    "pc_api_key": "<<MAESTRO_TOKEN>>",
+    "pc_network_id": "mainnet",
+    "pc_dex": "genius-yield",
+    "pc_override": {
+      "mpo_commodity_token": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
+      "mpo_pair": "ADA-GENS",
+      "mpo_commodity_is_first": false
+    }
+  },
+  "mbc_strategy_config": {
+    "sc_spread": {
+      "numerator": 1,
+      "denominator": 100
+    },
+    "sc_token_volume": {
+      "tv_sell_min_vol": 1000000000,
+      "tv_buy_min_vol": 2000000000,
+      "tv_sell_budget": 3500000000,
+      "tv_buy_budget": 6600000000,
+      "tv_sell_vol_threshold": 10000000000,
+      "tv_buy_vol_threshold": 20000000000
+    },
+    "sc_price_check_product": 9,
+    "sc_cancel_threshold_product": 4
+  },
+  "mbc_token": {
+    "stAc": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
+    "stPrecision": 6
+  }
+}

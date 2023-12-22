@@ -1,0 +1,16 @@
+{
+  "coreProvider": {
+    "socketPath": "<<CARDANO_NODE_SOCKET_PATH>>",
+    "kupoUrl": "<<KUPO_URL>>"
+  },
+  "networkId": "<<CARDANO_NETWORK>>",
+  "logging": [
+    {
+      "type": {
+        "tag": "stderr"
+      },
+      "severity": "Info",
+      "verbosity": "V2"
+    }
+  ]
+}

@@ -1,6 +1,0 @@
-{
-	"coreProvider": { "maestroToken": "<<MAESTRO_TOKEN>>" },
-	"networkId": "<<CARDANO_NETWORK>>",
-	"logging": [{ "type": { "tag": "gcp" }, "severity": "Debug", "verbosity": "V2" }],
-    "utxoCacheEnable": false
-}

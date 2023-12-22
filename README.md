@@ -1,6 +1,6 @@
 # Market maker bot
 
-> ⚠️* **Warning**
+> **⚠️  Warning**
 >
 > Market making is a risky activity and running this bot can lead to lose of funds.
 
@@ -44,6 +44,7 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
 ### Bot configuration
 
 > **ⓘ**
+>
 > See [`sample-preprod-maker-bot-config-gens.json`](./sample-preprod-maker-bot-config-gens.json) and [`sample-mainnet-maker-bot-config-gens.json`](./sample-mainnet-maker-bot-config-gens.json) for sample Preprod and Mainnet market maker bot configuration respectively.
 
 ```json

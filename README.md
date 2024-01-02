@@ -57,7 +57,7 @@ configuration values. A MAINNET Maestro API key is needed, a payment signing key
 sending funds to the address controlled by the payment signing key.
 
 > [!WARNING]
-> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for details.
+> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details.
 
 ## Running the market maker bot: Building from source
 

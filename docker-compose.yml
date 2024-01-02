@@ -1,6 +1,6 @@
 version: '3.8'
 services:
-  sor:
+  mm:
     image: ghcr.io/geniusyield/market-maker:latest
     container_name: mm
     environment:
@@ -10,7 +10,7 @@ services:
            "coreProvider": {
              "maestroToken": "${MAESTRO_API_KEY}"
            },
-           "networkId": "${NETWORK-mainnet}",
+           "networkId": "${NETWORK:-mainnet}",
            "logging": [
              {
                "type": {
@@ -24,8 +24,8 @@ services:
       MARKET_MAKER_CONFIG: |
         {
           "mbc_user": {
-            "ur_s_key_path": "~/payment-signing-key.skey",
-            "ur_coll": ${COLLATERAL_UTXO}"
+            "ur_s_key_path": "/root/payment-signing-key.skey",
+            "ur_coll": "${COLLATERAL_UTXO}"
           },
           "mbc_fp_nft_policy": "compiled-scripts/minting-policy",
           "mbc_fp_order_validator": "compiled-scripts/partial-order",
@@ -38,7 +38,7 @@ services:
           "mbc_delay": 120000000,
           "mbc_price_config": {
             "pc_api_key": "${MAESTRO_API_KEY}",
-            "pc_network_id": "${NETWORK-mainnet}",
+            "pc_network_id": "${NETWORK:-mainnet}",
             "pc_dex": "genius-yield"
           },
           "mbc_strategy_config": {

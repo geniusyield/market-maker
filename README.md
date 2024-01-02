@@ -29,7 +29,37 @@ Given a market price `M` and a variable `δ` defined as _spread_, bot would plac
 
 If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if price has drifted way lower than the price at which sell orders were placed, they would be canceled.
 
-## Running the market maker bot
+## Running the market maker bot: Using docker compose
+
+The simplest way to start an MM bot instance is by using Docker compose.
+
+After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
+
+``` bash
+# Clone the repository:
+git clone git@github.com:geniusyield/market-maker.git
+cd market-maker
+# TODO: update the following values with your own configuration.
+export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
+export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
+export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
+# Start the MM bot with your config:
+docker compose up
+```
+
+As in the example above; the following environment variables must be specified before calling `docker compose up`:
+- `MAESTRO_API_KEY`: The MAINNET API key to be used for accessing the Maestro services.
+- `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
+- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
+
+The configuration values used for these environment variables in the example above are just placeholders. These must be replaced by your own
+configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
+sending funds to the address controlled by the payment signing key.
+
+> [!WARNING]
+> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details.
+
+## Running the market maker bot: Building from source
 
 First, you need to setup the necessary tooling to work with [haskell.nix](https://github.com/input-output-hk/haskell.nix), then simply run `nix develop`, and it will drop you into a shell with all the necessary tools. Once inside the environment, you can build the order bot with `cabal build all`.
 

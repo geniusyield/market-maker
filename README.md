@@ -31,7 +31,7 @@ If market price has drifted way higher (_"way higher"_ as directed by configurat
 
 ## Running the market maker bot: Using docker compose
 
-The MM bot can be started using Docker compose.
+The simplest way to start an MM bot can be started using Docker compose.
 
 After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
 
@@ -48,6 +48,8 @@ As in the example above; the following environment variables must be specified b
 - `MAESTRO_API_KEY`: The MAINNET API key to be used for accessing the Maestro services.
 - `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
 - `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
+
+**Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs!**
 
 ## Running the market maker bot: Building from source
 

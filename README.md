@@ -49,7 +49,8 @@ As in the example above; the following environment variables must be specified b
 - `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
 - `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
 
-**Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs!**
+> [!WARNING]
+> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs!
 
 ## Running the market maker bot: Building from source
 

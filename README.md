@@ -29,7 +29,27 @@ Given a market price `M` and a variable `δ` defined as _spread_, bot would plac
 
 If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if price has drifted way lower than the price at which sell orders were placed, they would be canceled.
 
-## Running the market maker bot
+## Running the market maker bot: Using docker compose
+
+The MM bot can be started using Docker compose.
+
+After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
+
+```
+git clone git@github.com:geniusyield/market-maker.git
+cd market-maker
+export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3xvyWoGEfPrP4Vf2
+export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb850d08s83a4cf5a4408240248ea571a65bb22bf443586c233ae56bc340" }'
+export COLLATERAL_UTXO=d235edd34566a425668a475963dfc2c1c323a11287340b202c35093433491df#0
+docker compose up
+```
+
+As in the example above; the following environment variables must be specified before calling `docker compose up`:
+- `MAESTRO_API_KEY`: The MAINNET API key to be used for accessing the Maestro services.
+- `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
+- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
+
+## Running the market maker bot: Building from source
 
 First, you need to setup the necessary tooling to work with [haskell.nix](https://github.com/input-output-hk/haskell.nix), then simply run `nix develop`, and it will drop you into a shell with all the necessary tools. Once inside the environment, you can build the order bot with `cabal build all`.
 

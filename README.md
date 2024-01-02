@@ -35,7 +35,7 @@ The simplest way to start an MM bot instance is by using Docker compose.
 
 After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
 
-```
+``` bash
 git clone git@github.com:geniusyield/market-maker.git
 cd market-maker
 export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3xvyWoGEfPrP4Vf2
@@ -49,8 +49,12 @@ As in the example above; the following environment variables must be specified b
 - `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
 - `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
 
+The configuration values used for these environment variables in the example above are just placeholders. These must be replaced by your own
+configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
+sending funds to the address controlled by the payment signing key.
+
 > [!WARNING]
-> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs!
+> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for details.
 
 ## Running the market maker bot: Building from source
 

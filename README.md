@@ -31,7 +31,7 @@ If market price has drifted way higher (_"way higher"_ as directed by configurat
 
 ## Running the market maker bot: Using docker compose
 
-The simplest way to start an MM bot can be started using Docker compose.
+The simplest way to start an MM bot instance is by using Docker compose.
 
 After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
 

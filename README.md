@@ -36,11 +36,14 @@ The simplest way to start an MM bot instance is by using Docker compose.
 After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
 
 ``` bash
+# Clone the repository:
 git clone git@github.com:geniusyield/market-maker.git
 cd market-maker
+# TODO: update the following values with your own configuration.
 export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3xvyWoGEfPrP4Vf2
 export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb850d08s83a4cf5a4408240248ea571a65bb22bf443586c233ae56bc340" }'
 export COLLATERAL_UTXO=d235edd34566a425668a475963dfc2c1c323a11287340b202c35093433491df#0
+# Start the MM bot with your config:
 docker compose up
 ```
 

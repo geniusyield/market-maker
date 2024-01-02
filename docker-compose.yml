@@ -24,7 +24,7 @@ services:
       MARKET_MAKER_CONFIG: |
         {
           "mbc_user": {
-            "ur_s_key_path": "~/payment-signing-key.skey",
+            "ur_s_key_path": "/root/payment-signing-key.skey",
             "ur_coll": "${COLLATERAL_UTXO}"
           },
           "mbc_fp_nft_policy": "compiled-scripts/minting-policy",

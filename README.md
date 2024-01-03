@@ -124,7 +124,7 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
   }
 }
 ```
-* `mbc_user` describes individual bot, it specifies `ur_s_key_path` which is the path to signing key file and `ur_coll` which is the UTxO reserved as collateral.
+* `mbc_user` describes individual bot, it specifies `ur_s_key_path` which is the path to signing key file and `ur_coll` which is the UTxO reserved as collateral. Specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ada only UTxO (i.e., no other tokens besides ada).
 * Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is.
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
 * `mbc_price_config` gives the configuration on how to get market price using https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc Maestro endpoint, for a token.

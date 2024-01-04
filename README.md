@@ -149,7 +149,7 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
     * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
     * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
 
-## Canceling all the orders (docker)
+## Canceling all the orders using docker (simple)
 
 If you would like to cancel *ALL* orders placed by your Market Maker Instance ran in Docker, you can do this by executing the following commands:
 
@@ -172,7 +172,7 @@ You should see log entries with `X orders to cancel!` and finally `No more order
 
 The final `ExitSuccess` and the `mm exited with code 0` output confirms that all went well.
 
-## Canceling all the orders (advanced)
+## Canceling all the orders using cabal (advanced)
 
 If you would like to cancel *ALL* orders placed by your Market Maker Instance and you built it from source, you can simply run:
 

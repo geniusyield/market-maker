@@ -1,17 +1,17 @@
 # Market maker bot
 
-> **⚠️  Warning**
->
+> [!WARNING]
 > Market making is a risky activity and running this bot can lead to loss of funds.
 
 Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implements _fixed spread versus market price strategy_.
 
 ## Fixed spread vs market price strategy
 
-> **ⓘ Order classification and price**
+> [!NOTE]
+> **Order classification and price**
 >
 > We call non-ada token as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
-> 
+>
 > _Price_ is described in display unit[^1] of currency token per display unit of commodity token.
 
 Given a market price `M` and a variable `δ` defined as _spread_, bot would place following orders where exact number and volume is determined by configuration:
@@ -29,11 +29,11 @@ Given a market price `M` and a variable `δ` defined as _spread_, bot would plac
 
 If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if price has drifted way lower than the price at which sell orders were placed, they would be canceled.
 
-## Running the market maker bot: Using docker compose
+## Running the market maker bot: Using docker compose (simple)
 
 The simplest way to start an MM bot instance is by using Docker compose.
 
-After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
+After cloning the repositorym only a few environment variables must be set. As soon as this has been done; the Market Maker can be started using `docker compose`:
 
 ``` bash
 # Clone the repository:
@@ -56,25 +56,31 @@ The configuration values used for these environment variables in the example abo
 configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
 sending funds to the address controlled by the payment signing key.
 
-> [!WARNING]
-> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details.
+Maestro API keys are available after registration via the following link:
+ - https://docs.gomaestro.org/Getting-started/Sign-up-login
 
-## Running the market maker bot: Building from source
+> [!WARNING]
+> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details. For the configuration of the Market Maker, please see the [Configuration Settings](#Configuration) chapter.
+
+## Running the market maker bot: Building from source (advanced)
+
+In case you would like to build the Market Maker Bot from source, this chapter covers how to accomplish this.
+
+> [!TIP]
+> If you are not planning to contribute to the project, simply using the pre-built docker image, as described above, is likely the easier way to get started.
 
 First, you need to setup the necessary tooling to work with [haskell.nix](https://github.com/input-output-hk/haskell.nix), then simply run `nix develop`, and it will drop you into a shell with all the necessary tools. Once inside the environment, you can build the order bot with `cabal build all`.
 
-> **ⓘ**
->
+> [!NOTE]
 > Nix is not necessary if your environment already has the right set of dependencies. One may look at the [CI file](https://github.com/geniusyield/atlas/blob/main/.github/workflows/haskell.yml) for our transaction building tool, which current project also relies on, to see dependencies used.
 
 Then the bot can be ran with following command: `cabal run geniusyield-market-maker-exe -- Run my-atlas-config.json my-maker-bot-config.json` where `my-atlas-config.json` is the configuration for [Atlas](https://github.com/geniusyield/atlas) and `my-maker-bot-config.json` is the configuration of our market maker bot.
 
 See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-kupo.json`](./atlas-config-kupo.json) as an example of Atlas configuration using [Maestro](https://www.gomaestro.org/) provider & local node with [Kupo](https://github.com/CardanoSolutions/kupo) respectively.
 
-### Bot configuration
+### Configuration
 
-> **ⓘ**
->
+> [!NOTE]
 > See [`sample-preprod-maker-bot-config-gens.json`](./sample-preprod-maker-bot-config-gens.json) and [`sample-mainnet-maker-bot-config-gens.json`](./sample-mainnet-maker-bot-config-gens.json) for sample Preprod and Mainnet market maker bot configuration respectively.
 
 ```json
@@ -145,7 +151,11 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
 
 ## Canceling all the orders
 
-If you want to cancel orders placed by the simulator you can run `cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json`.
+If you would like to cancel *ALL* orders placed by your Market Maker Instance, you can simply run:
+
+``` bash
+cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json
+```
 
 ## Known Issues
 

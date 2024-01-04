@@ -10,7 +10,7 @@ Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implem
 > [!NOTE]
 > **Order classification and price**
 >
-> We call non-ada token as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
+> We call non-ada tokens as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
 >
 > _Price_ is described in display unit[^1] of currency token per display unit of commodity token.
 
@@ -27,13 +27,13 @@ Given a market price `M` and a variable `δ` defined as _spread_, bot would plac
   * `M * (1 + δ + δ / 2 + δ / 2)`
   * And so on, where `n`th sell order's price is given by `M * (1 + δ + (n - 1) * δ / 2)`.
 
-If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if price has drifted way lower than the price at which sell orders were placed, they would be canceled.
+If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, they would be canceled.
 
 ## Running the market maker bot: Using docker compose (simple)
 
 The simplest way to start an MM bot instance is by using Docker compose.
 
-After cloning the repositorym only a few environment variables must be set. As soon as this has been done; the Market Maker can be started using `docker compose`:
+After cloning the repository  only a few environment variables must be set. As soon as this has been done; the Market Maker can be started using `docker compose`:
 
 ``` bash
 # Clone the repository:
@@ -50,7 +50,7 @@ docker compose up
 As in the example above; the following environment variables must be specified before calling `docker compose up`:
 - `MAESTRO_API_KEY`: The MAINNET API key to be used for accessing the Maestro services.
 - `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
-- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
+- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as collateral UTxO.
 
 The configuration values used for these environment variables in the example above are just placeholders. These must be replaced by your own
 configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
@@ -159,6 +159,6 @@ cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-b
 
 ## Known Issues
 
-* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now bot can place remaining ones in next iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where bot might have multiple orders at the same price.
+* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now the bot can place the remaining ones in next the iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where the bot might have multiple orders at the same price.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).

@@ -43,6 +43,8 @@ cd market-maker
 export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
 export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
 export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
+# Update the docker images:
+docker compose pull
 # Start the MM bot with your config:
 docker compose up
 ```
@@ -164,6 +166,8 @@ export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
 export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
 export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
 export MODE=CANCEL
+# Update the docker images:
+docker compose pull
 # Start the MM bot in 'CANCEL' mode:
 docker compose up
 ```

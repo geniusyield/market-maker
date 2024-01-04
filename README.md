@@ -168,7 +168,7 @@ export MODE=CANCEL
 docker compose up
 ```
 
-You should see log entries with `X orders to cancel!` and finally `No more orders to cancel!` messages after all the orders placed by your MM instance had been cancelled.
+You should see log entries with `X orders to cancel!` and finally `No more orders to cancel!` messages after all the orders placed by your MM instance had been canceled.
 
 The final `ExitSuccess` and the `mm exited with code 0` output confirms that all went well.
 

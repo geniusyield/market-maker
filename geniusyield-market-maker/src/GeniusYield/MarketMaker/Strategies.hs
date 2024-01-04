@@ -294,12 +294,12 @@ fixedSpreadVsMarketPriceStrategy
       Nothing → error "Absurd in getEquityFromOrder: Order SimTokenPair not in MarketInfo"
       Just price →
         let ownFunds = getOrderOwnFunds poi
-         in let priceOfNonAdaToken nonAdaAC = floor $ fromIntegral (valueAssetClass ownFunds nonAdaAC) * getPrice price
-             in (valueAssetClass ownFunds GYLovelace & fromIntegral)
-                  + ( if poiOfferedAsset poi == GYLovelace
-                        then priceOfNonAdaToken (poiAskedAsset poi)
-                        else priceOfNonAdaToken (poiOfferedAsset poi)
-                    )
+            priceOfNonAdaToken nonAdaAC = floor $ fromIntegral (valueAssetClass ownFunds nonAdaAC) * getPrice price
+         in (valueAssetClass ownFunds GYLovelace & fromIntegral)
+              + ( if poiOfferedAsset poi == GYLovelace
+                    then priceOfNonAdaToken (poiAskedAsset poi)
+                    else priceOfNonAdaToken (poiOfferedAsset poi)
+                )
      where
       -- \| Note that at any moment, an order UTxO contains:-
       --                  * An NFT.

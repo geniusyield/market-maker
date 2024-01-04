@@ -1,11 +1,9 @@
 module GeniusYield.MarketMaker.MakerBot where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (SomeException, handle)
-import Control.Monad (forever, liftM2, when)
+import Control.Exception (Exception (displayException), Handler (Handler), catches)
+import Control.Monad (forM_, forever, when)
 import Control.Monad.Reader (runReaderT)
-import Data.Functor.Identity (runIdentity)
-import qualified Data.List.NonEmpty as NE (toList)
 import Data.List.Split (chunksOf)
 import qualified Data.Map.Strict as M
 import GeniusYield.Api.Dex.PartialOrder (
@@ -14,6 +12,7 @@ import GeniusYield.Api.Dex.PartialOrder (
   partialOrders,
   placePartialOrder,
  )
+import GeniusYield.Imports (printf)
 import GeniusYield.MarketMaker.Prices
 import GeniusYield.MarketMaker.Strategies
 import GeniusYield.MarketMaker.Utils (
@@ -21,6 +20,8 @@ import GeniusYield.MarketMaker.Utils (
   addrFromSkey,
   pkhFromSkey,
  )
+import GeniusYield.Providers.Common (SubmitTxException)
+import GeniusYield.Transaction (BuildTxException)
 import GeniusYield.TxBuilder
 import GeniusYield.Types
 import System.Exit
@@ -36,32 +37,6 @@ data MakerBot = MakerBot
 
 -----------------------------------------------------------------------
 ---------------------------- ACTIONS ----------------------------------
-
--- | For each `PlaceOrderAction`, get a skeleton that places that order.
-placeOrders ∷ GYNetworkId → User → [PlaceOrderAction] → DEXInfo → GYTxMonadNode [GYTxSkeleton 'PlutusV2]
-placeOrders _ _ [] _ = return []
-placeOrders netId User {uSKey} sts di = do
-  let userAddr = addrFromSkey netId uSKey
-
-  let getOrderSkeleton ∷ PlaceOrderAction → GYTxMonadNode (GYTxSkeleton 'PlutusV2)
-      getOrderSkeleton PlaceOrderAction {..} =
-        flip runReaderT di
-          $ placePartialOrder
-            (dexPORefs di)
-            userAddr
-            (poaOfferedAmount, poaOfferedAsset)
-            poaAskedAsset
-            poaPrice
-            Nothing
-            Nothing
-            Nothing
-
-  mapM getOrderSkeleton sts
-
--- | Returns a skeleton that cancels all orders from the given list.
-cancelOrders ∷ [CancelOrderAction] → DEXInfo → GYTxMonadNode [GYTxSkeleton 'PlutusV2]
-cancelOrders [] _ = return []
-cancelOrders coas di = mapM (flip runReaderT di . cancelMultiplePartialOrders (dexPORefs di) . map coaPoi) $ chunksOf 6 coas
 
 -- | Scan the chain for existing orders and cancel all of them in batches of 6.
 cancelAllOrders ∷ MakerBot → GYNetworkId → GYProviders → DEXInfo → IO ()
@@ -89,32 +64,58 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
       userPOIs = filter (\o → poiOwnerKey o == userPkh) $ M.elems partialOrderInfos
   go userPOIs
 
-signAndSubmit ∷ User → GYProviders → GYNetworkId → GYTxMonadNode [GYTxSkeleton 'PlutusV2] → IO ()
-signAndSubmit User {uSKey, uColl} providers netId skeletons = handle hanldeSignAndSubmit $ do
+buildAndSubmitActions ∷ User → GYProviders → GYNetworkId → UserActions → DEXInfo → IO ()
+buildAndSubmitActions User {uSKey, uColl} providers netId ua di = flip catches handlers $ do
   let userAddr = addrFromSkey netId uSKey
+      placeActions = uaPlaces ua
+      cancelActions = uaCancels ua
 
-  txBodyRes ← runGYTxMonadNodeParallel netId providers [userAddr] userAddr uColl skeletons
+  forM_ (chunksOf 6 cancelActions) $ \cancelChunk → do
+    logInfo $ "Building for cancel action(s): " <> show cancelChunk
+    txBody ← runGYTxMonadNode netId providers [userAddr] userAddr uColl $ flip runReaderT di $ cancelMultiplePartialOrders (dexPORefs di) (map coaPoi cancelChunk)
+    buildCommon txBody
 
-  bodies ← case txBodyRes of
-    GYTxBuildSuccess txs → return $ getBodies txs
-    GYTxBuildPartialSuccess v txs →
-      logWarn (unwords ["Partial Success:", show v])
-        >> return (getBodies txs)
-    GYTxBuildFailure v →
-      logWarn (unwords ["Insufficient funds:", show v])
-        >> return []
-    GYTxBuildNoInputs → logWarn "No Inputs" >> return []
-
-  let txs = map (`signGYTxBody` [uSKey]) bodies
-  tids ← mapM (gySubmitTx providers) txs
-  mapM_ (gyLogInfo providers "MM" . ("Submitted Tx: " ++) . show) tids
+  forM_ placeActions $ \pa@PlaceOrderAction {..} → do
+    logInfo $ "Building for place action: " <> show pa
+    txBody ←
+      runGYTxMonadNode netId providers [userAddr] userAddr uColl
+        $ flip runReaderT di
+        $ placePartialOrder
+          (dexPORefs di)
+          userAddr
+          (poaOfferedAmount, poaOfferedAsset)
+          poaAskedAsset
+          poaPrice
+          Nothing
+          Nothing
+          Nothing
+    buildCommon txBody
  where
-  logWarn = gyLogWarning providers "Market Maker"
+  logWarn = gyLogWarning providers "MM"
+  logInfo = gyLogInfo providers "MM"
 
-  hanldeSignAndSubmit ∷ SomeException → IO ()
-  hanldeSignAndSubmit = logWarn . show
+  handlers =
+    let handlerCommon ∷ Exception e ⇒ e → IO ()
+        handlerCommon = logWarn . displayException
 
-  getBodies = NE.toList . runIdentity . sequence
+        be ∷ BuildTxException → IO ()
+        be = handlerCommon
+
+        se ∷ SubmitTxException → IO ()
+        se = handlerCommon
+
+        me ∷ GYTxMonadException → IO ()
+        me = handlerCommon
+     in [Handler be, Handler se, Handler me]
+
+  buildCommon txBody = do
+    logInfo $ "Successfully built body for above action, tx id: " <> show (txBodyTxId txBody)
+    let tx = signGYTxBody txBody [uSKey]
+    tid ← gySubmitTx providers tx
+    let numConfirms = 1
+    logInfo $ printf "Successfully submitted above tx, now waiting for %d confirmation(s)" numConfirms
+    gyAwaitTxConfirmed providers (GYAwaitTxParameters {checkInterval = 10_000_000, confirmations = numConfirms, maxAttempts = 30}) tid
+    logInfo $ printf "Tx successfully seen on chain with %d confirmation(s)" numConfirms
 
 executeStrategy
   ∷ Strategy
@@ -128,11 +129,7 @@ executeStrategy runStrategy MakerBot {mbUser, mbDelay, mbToken} netId providers 
   forever $ do
     newActions ← runStrategy pp mbUser mbToken
 
-    let placeSkeletons = placeOrders netId mbUser (uaPlaces newActions) di
-        cancelSkeletons = cancelOrders (uaCancels newActions) di
-        allSkeletons = liftM2 (++) placeSkeletons cancelSkeletons
-
-    signAndSubmit mbUser providers netId allSkeletons
+    buildAndSubmitActions mbUser providers netId newActions di
 
     gyLogInfo providers "MM" "---------- Done for the block! -----------"
     threadDelay mbDelay

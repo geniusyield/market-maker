@@ -162,7 +162,7 @@ fixedSpreadVsMarketPriceStrategy
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
 
-    mp ← getMaestroPrices pp [sTokenPair]
+    mp ← getMaestroPrice pp sTokenPair
 
     logDebug providers $ "Maestro Prices: " ++ show mp
     logInfo providers $ logMaestroMarketInfo mp
@@ -174,82 +174,76 @@ fixedSpreadVsMarketPriceStrategy
         allOwnOrders = M.foldr (++) [] ownOrdersPerUser
         equityOnOrders = sum $ map (getEquityFromOrder mp) allOwnOrders
         totalValueOnUtxos = foldlUTxOs' (\acc utxo → acc <> utxoValue utxo) mempty ownUtxos
-        equityOnUtxos = foldl' (\acc (_, n) → acc + n) 0 $ valueToList $ valueMap (getEquityFromValue $ M.mapKeys toOAPair mp) totalValueOnUtxos
+        equityOnUtxos = foldl' (\acc (_, n) → acc + n) 0 $ valueToList $ valueMap (getEquityFromValue mp) totalValueOnUtxos
 
         cancelOrderActions =
           map (\(_, poi) → CancelOrderAction poi)
-            $ ordersToBeRemoved (`M.lookup` mp) cancelThreshold allOwnOrders
+            $ ordersToBeRemoved mp cancelThreshold allOwnOrders
 
         relevantSTP = mkSimTokenPair lovelaceSt sToken
         mtInfo = M.lookup relevantSTP bp
-        mMaestroPrice = M.lookup relevantSTP mp
 
         lockedLovelaces = getOrdersLockedValue relevantSTP lovelaceSt allOwnOrders
         lockedTokens = getOrdersLockedValue relevantSTP sToken allOwnOrders
 
     placeOrderActions ← do
-      case mMaestroPrice of
-        Nothing → do
-          logWarn providers $ "Could not get price from Maestro for the required token " ++ show relevantSTP
-          pure []
-        (Just maestroPrice) → do
-          let TokenVol
-                { tvSellVolThreshold,
-                  tvBuyVolThreshold,
-                  tvSellMinVol,
-                  tvBuyMinVol,
-                  tvSellBudget,
-                  tvBuyBudget
-                } = scTokenVolume
+      let TokenVol
+            { tvSellVolThreshold,
+              tvBuyVolThreshold,
+              tvSellMinVol,
+              tvBuyMinVol,
+              tvSellBudget,
+              tvBuyBudget
+            } = scTokenVolume
 
-              (sellVol, buyVol) = case mtInfo of
-                Nothing → (0, 0)
-                Just OBMarketTokenInfo {mtSellVol, mtBuyVol} → (mtSellVol, mtBuyVol)
+          (sellVol, buyVol) = case mtInfo of
+            Nothing → (0, 0)
+            Just OBMarketTokenInfo {mtSellVol, mtBuyVol} → (mtSellVol, mtBuyVol)
 
-              availableBuyBudget = max 0 (tvBuyBudget - fromIntegral lockedLovelaces)
-              availableSellBudget = max 0 (tvSellBudget - fromIntegral lockedTokens)
-              numNewBuyOrders = availableBuyBudget `quot` tvBuyMinVol
-              numNewSellOrders = availableSellBudget `quot` tvSellMinVol
-              adaOverhead = valueFromLovelace 5_000_000
+          availableBuyBudget = max 0 (tvBuyBudget - fromIntegral lockedLovelaces)
+          availableSellBudget = max 0 (tvSellBudget - fromIntegral lockedTokens)
+          numNewBuyOrders = availableBuyBudget `quot` tvBuyMinVol
+          numNewSellOrders = availableSellBudget `quot` tvSellMinVol
+          adaOverhead = valueFromLovelace 5_000_000
 
-          newBuyOrders ←
-            if tvBuyVolThreshold <= fromIntegral buyVol || numNewBuyOrders == 0
-              then pure []
+      newBuyOrders ←
+        if tvBuyVolThreshold <= fromIntegral buyVol || numNewBuyOrders == 0
+          then pure []
+          else do
+            let tokensToOfferPerOrder = availableBuyBudget `quot` numNewBuyOrders
+                neededAtleast = valueFromLovelace tokensToOfferPerOrder <> adaOverhead
+            if totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
+              then
+                pure
+                  $ buildNewUserOrders
+                    scSpread
+                    (sToken, lovelaceSt)
+                    mp
+                    (fromIntegral tokensToOfferPerOrder)
+                    (fromIntegral numNewBuyOrders)
+                    True
               else do
-                let tokensToOfferPerOrder = availableBuyBudget `quot` numNewBuyOrders
-                    neededAtleast = valueFromLovelace tokensToOfferPerOrder <> adaOverhead
-                if totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
-                  then
-                    pure
-                      $ buildNewUserOrders
-                        scSpread
-                        (sToken, lovelaceSt)
-                        maestroPrice
-                        (fromIntegral tokensToOfferPerOrder)
-                        (fromIntegral numNewBuyOrders)
-                        True
-                  else do
-                    logWarn providers $ "Bot has to place buy order(s), but lack funds, needed at least: " ++ show (stimes numNewBuyOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders because even if we have funds to place one order, out transaction build logic would see that and at least get that single one built successfully.
-                    pure []
+                logWarn providers $ "Bot has to place buy order(s), but lack funds, needed at least: " ++ show (stimes numNewBuyOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders because even if we have funds to place one order, out transaction build logic would see that and at least get that single one built successfully.
+                pure []
 
-          if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
-            then pure newBuyOrders
+      if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
+        then pure newBuyOrders
+        else do
+          let tokensToOfferPerOrder = availableSellBudget `quot` numNewSellOrders
+              neededAtleast = valueSingleton (stAc sToken) tokensToOfferPerOrder <> adaOverhead
+          if totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
+            then
+              pure
+                $ buildNewUserOrders
+                  scSpread
+                  (lovelaceSt, sToken)
+                  mp
+                  (fromIntegral $ availableSellBudget `quot` numNewSellOrders)
+                  (fromIntegral numNewSellOrders)
+                  False
             else do
-              let tokensToOfferPerOrder = availableSellBudget `quot` numNewSellOrders
-                  neededAtleast = valueSingleton (stAc sToken) tokensToOfferPerOrder <> adaOverhead
-              if totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
-                then
-                  pure
-                    $ buildNewUserOrders
-                      scSpread
-                      (lovelaceSt, sToken)
-                      maestroPrice
-                      (fromIntegral $ availableSellBudget `quot` numNewSellOrders)
-                      (fromIntegral numNewSellOrders)
-                      False
-                else do
-                  logWarn providers $ "Bot has to place sell order(s), but lack funds, needed at least: " ++ show (stimes numNewSellOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders.
-                  pure []
+              logWarn providers $ "Bot has to place sell order(s), but lack funds, needed at least: " ++ show (stimes numNewSellOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders.
+              pure []
 
     let placeUserActions = uaFromOnlyPlaces placeOrderActions
         cancelUserActions = uaFromOnlyCancels cancelOrderActions
@@ -289,17 +283,15 @@ fixedSpreadVsMarketPriceStrategy
                   }
        in map poi [0 .. (nOrders - 1)]
 
-    getEquityFromOrder ∷ MaestroMarketInfo → (SimTokenPair, PartialOrderInfo) → Natural
-    getEquityFromOrder mmi (stp, poi) = case M.lookup stp mmi of
-      Nothing → error "Absurd in getEquityFromOrder: Order SimTokenPair not in MarketInfo"
-      Just price →
-        let ownFunds = getOrderOwnFunds poi
-            priceOfNonAdaToken nonAdaAC = floor $ fromIntegral (valueAssetClass ownFunds nonAdaAC) * getPrice price
-         in (valueAssetClass ownFunds GYLovelace & fromIntegral)
-              + ( if poiOfferedAsset poi == GYLovelace
-                    then priceOfNonAdaToken (poiAskedAsset poi)
-                    else priceOfNonAdaToken (poiOfferedAsset poi)
-                )
+    getEquityFromOrder ∷ Price → (SimTokenPair, PartialOrderInfo) → Natural
+    getEquityFromOrder price (_stp, poi) =
+      let ownFunds = getOrderOwnFunds poi
+          priceOfNonAdaToken nonAdaAC = floor $ fromIntegral (valueAssetClass ownFunds nonAdaAC) * getPrice price
+       in (valueAssetClass ownFunds GYLovelace & fromIntegral)
+            + ( if poiOfferedAsset poi == GYLovelace
+                  then priceOfNonAdaToken (poiAskedAsset poi)
+                  else priceOfNonAdaToken (poiOfferedAsset poi)
+              )
      where
       -- \| Note that at any moment, an order UTxO contains:-
       --                  * An NFT.
@@ -313,12 +305,10 @@ fixedSpreadVsMarketPriceStrategy
         let toSubtract = valueSingleton (GYToken poiNFTCS poiNFT) 1 <> poiGetContainedFeeValue poi
          in poiUTxOValue `valueMinus` toSubtract
 
-    getEquityFromValue ∷ M.Map OrderAssetPair Price → GYAssetClass → Integer → Integer
+    getEquityFromValue ∷ Price → GYAssetClass → Integer → Integer
     getEquityFromValue _ GYLovelace n = n
-    getEquityFromValue mp' ac n =
-      let valueOAP = mkOrderAssetPair GYLovelace ac
-          price = maybe 0 getPrice (M.lookup valueOAP mp')
-       in floor $ price * fromInteger n
+    getEquityFromValue (getPrice → price) _ac n =
+      floor $ price * fromInteger n
 
     getOrdersLockedValue ∷ SimTokenPair → SimToken → [(SimTokenPair, PartialOrderInfo)] → Natural
     getOrdersLockedValue stp st orders =
@@ -347,35 +337,26 @@ fixedSpreadVsMarketPriceStrategy
               show adjustedPrice,
               ")"
             ]
-    logMaestroMarketInfo ∷ MaestroMarketInfo → String
-    logMaestroMarketInfo mmi =
-      unlines
-        $ M.elems
-        $ M.mapWithKey
-          ( \stp p →
-              unwords
-                [ "Price for:",
-                  prettyAc $ stAc $ commoditySt stp,
-                  "is",
-                  show (fromRational (getPrice p) ∷ Double)
-                ]
-          )
-          mmi
+    logMaestroMarketInfo ∷ Price → String
+    logMaestroMarketInfo price =
+      unwords
+        [ "Price for:",
+          prettyAc $ stAc sToken,
+          "is",
+          show (fromRational (getPrice price) ∷ Double)
+        ]
 
     prettyAc ∷ GYAssetClass → String
     prettyAc GYLovelace = "lovelaces"
     prettyAc (GYToken _ tn) = "indivisible of " ++ show tn
 
-ordersToBeRemoved ∷ (SimTokenPair → Maybe Price) → Rational → [(SimTokenPair, PartialOrderInfo)] → [(SimTokenPair, PartialOrderInfo)]
-ordersToBeRemoved getSTPPrice cancelLimitSpread = filter (orderIsToBeRemoved getSTPPrice cancelLimitSpread)
+ordersToBeRemoved ∷ Price → Rational → [(SimTokenPair, PartialOrderInfo)] → [(SimTokenPair, PartialOrderInfo)]
+ordersToBeRemoved price cancelLimitSpread = filter (orderIsToBeRemoved price cancelLimitSpread)
 
-orderIsToBeRemoved ∷ (SimTokenPair → Maybe Price) → Rational → (SimTokenPair, PartialOrderInfo) → Bool
-orderIsToBeRemoved getSTPPrice cancelLimitSpread (stp, poi) =
-  case getSTPPrice stp of
-    Nothing → False
-    Just mPrice →
-      let marketPrice = getPrice mPrice
-          oap = toOAPair stp
-       in case mkOrderInfo oap poi of
-            SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} → getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
-            SomeOrderInfo OrderInfo {orderType = SSellOrder, price} → getPrice price > marketPrice + (cancelLimitSpread * marketPrice)
+orderIsToBeRemoved ∷ Price → Rational → (SimTokenPair, PartialOrderInfo) → Bool
+orderIsToBeRemoved mPrice cancelLimitSpread (stp, poi) =
+  let marketPrice = getPrice mPrice
+      oap = toOAPair stp
+   in case mkOrderInfo oap poi of
+        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} → getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} → getPrice price > marketPrice + (cancelLimitSpread * marketPrice)

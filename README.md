@@ -149,13 +149,38 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
     * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
     * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
 
-## Canceling all the orders
+## Canceling all the orders (docker)
 
-If you would like to cancel *ALL* orders placed by your Market Maker Instance, you can simply run:
+If you would like to cancel *ALL* orders placed by your Market Maker Instance ran in Docker, you can do this by executing the following commands:
+
+``` bash
+# Clone the repository:
+git clone git@github.com:geniusyield/market-maker.git
+cd market-maker
+# Stop the market maker (in case it is still running):
+docker compose down
+# TODO: update the following values with your own configuration:
+export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
+export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
+export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
+export MODE=CANCEL
+# Start the MM bot in 'CANCEL' mode:
+docker compose up
+```
+
+You should see log entries with `X orders to cancel!` and finally `No more orders to cancel!` messages after all the orders placed by your MM instance had been cancelled.
+
+The final `ExitSuccess` and the `mm exited with code 0` output confirms that all went well.
+
+## Canceling all the orders (advanced)
+
+If you would like to cancel *ALL* orders placed by your Market Maker Instance and you built it from source, you can simply run:
 
 ``` bash
 cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json
 ```
+
+The output should be similar like in the previous chapter.
 
 ## Known Issues
 

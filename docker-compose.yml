@@ -4,6 +4,8 @@ services:
     image: ghcr.io/geniusyield/market-maker:latest
     container_name: mm
     environment:
+      # Supported modes: MM for market making and CANCEL for canceling ALL the orders.
+      MODE: MM
       PAYMENT_SIGNING_KEY: ${PAYMENT_SIGNING_KEY}
       PROVIDER_CONFIG: |
          {

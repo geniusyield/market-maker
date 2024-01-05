@@ -1,17 +1,17 @@
 # Market maker bot
 
-> **⚠️  Warning**
->
+> [!WARNING]
 > Market making is a risky activity and running this bot can lead to loss of funds.
 
 Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implements _fixed spread versus market price strategy_.
 
 ## Fixed spread vs market price strategy
 
-> **ⓘ Order classification and price**
+> [!NOTE]
+> **Order classification and price**
 >
-> We call non-ada token as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
-> 
+> We call non-ada tokens as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
+>
 > _Price_ is described in display unit[^1] of currency token per display unit of commodity token.
 
 Given a market price `M` and a variable `δ` defined as _spread_, bot would place following orders where exact number and volume is determined by configuration:
@@ -27,13 +27,13 @@ Given a market price `M` and a variable `δ` defined as _spread_, bot would plac
   * `M * (1 + δ + δ / 2 + δ / 2)`
   * And so on, where `n`th sell order's price is given by `M * (1 + δ + (n - 1) * δ / 2)`.
 
-If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if price has drifted way lower than the price at which sell orders were placed, they would be canceled.
+If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, they would be canceled.
 
-## Running the market maker bot: Using docker compose
+## Running the market maker bot: Using docker compose (simple)
 
 The simplest way to start an MM bot instance is by using Docker compose.
 
-After cloning the repository a few environment variables must be set. After this has been done; the MM bot container can be started using `docker compose`:
+After cloning the repository  only a few environment variables must be set. As soon as this has been done; the Market Maker can be started using `docker compose`:
 
 ``` bash
 # Clone the repository:
@@ -43,6 +43,8 @@ cd market-maker
 export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
 export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
 export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
+# Update the docker images:
+docker compose pull
 # Start the MM bot with your config:
 docker compose up
 ```
@@ -50,31 +52,37 @@ docker compose up
 As in the example above; the following environment variables must be specified before calling `docker compose up`:
 - `MAESTRO_API_KEY`: The MAINNET API key to be used for accessing the Maestro services.
 - `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
-- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as colletaral UTxO.
+- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as collateral UTxO.
 
 The configuration values used for these environment variables in the example above are just placeholders. These must be replaced by your own
 configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
 sending funds to the address controlled by the payment signing key.
 
-> [!WARNING]
-> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details.
+Maestro API keys are available after registration via the following link:
+ - https://docs.gomaestro.org/Getting-started/Sign-up-login
 
-## Running the market maker bot: Building from source
+> [!WARNING]
+> Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details. For the configuration of the Market Maker, please see the [Configuration Settings](#Configuration) chapter.
+
+## Running the market maker bot: Building from source (advanced)
+
+In case you would like to build the Market Maker Bot from source, this chapter covers how to accomplish this.
+
+> [!TIP]
+> If you are not planning to contribute to the project, simply using the pre-built docker image, as described above, is likely the easier way to get started.
 
 First, you need to setup the necessary tooling to work with [haskell.nix](https://github.com/input-output-hk/haskell.nix), then simply run `nix develop`, and it will drop you into a shell with all the necessary tools. Once inside the environment, you can build the order bot with `cabal build all`.
 
-> **ⓘ**
->
+> [!NOTE]
 > Nix is not necessary if your environment already has the right set of dependencies. One may look at the [CI file](https://github.com/geniusyield/atlas/blob/main/.github/workflows/haskell.yml) for our transaction building tool, which current project also relies on, to see dependencies used.
 
 Then the bot can be ran with following command: `cabal run geniusyield-market-maker-exe -- Run my-atlas-config.json my-maker-bot-config.json` where `my-atlas-config.json` is the configuration for [Atlas](https://github.com/geniusyield/atlas) and `my-maker-bot-config.json` is the configuration of our market maker bot.
 
 See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-kupo.json`](./atlas-config-kupo.json) as an example of Atlas configuration using [Maestro](https://www.gomaestro.org/) provider & local node with [Kupo](https://github.com/CardanoSolutions/kupo) respectively.
 
-### Bot configuration
+### Configuration
 
-> **ⓘ**
->
+> [!NOTE]
 > See [`sample-preprod-maker-bot-config-gens.json`](./sample-preprod-maker-bot-config-gens.json) and [`sample-mainnet-maker-bot-config-gens.json`](./sample-mainnet-maker-bot-config-gens.json) for sample Preprod and Mainnet market maker bot configuration respectively.
 
 ```json
@@ -143,12 +151,43 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
     * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
     * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
 
-## Canceling all the orders
+## Canceling all the orders using docker (simple)
 
-If you want to cancel orders placed by the simulator you can run `cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json`.
+If you would like to cancel *ALL* orders placed by your Market Maker Instance ran in Docker, you can do this by executing the following commands:
+
+``` bash
+# Clone the repository:
+git clone git@github.com:geniusyield/market-maker.git
+cd market-maker
+# Stop the market maker (in case it is still running):
+docker compose down
+# TODO: update the following values with your own configuration:
+export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
+export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
+export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
+export MODE=CANCEL
+# Update the docker images:
+docker compose pull
+# Start the MM bot in 'CANCEL' mode:
+docker compose up
+```
+
+You should see log entries with `X orders to cancel!` and finally `No more orders to cancel!` messages after all the orders placed by your MM instance had been canceled.
+
+The final `ExitSuccess` and the `mm exited with code 0` output confirms that all went well.
+
+## Canceling all the orders using cabal (advanced)
+
+If you would like to cancel *ALL* orders placed by your Market Maker Instance and you built it from source, you can simply run:
+
+``` bash
+cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json
+```
+
+The output should be similar like in the previous chapter.
 
 ## Known Issues
 
-* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now bot can place remaining ones in next iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where bot might have multiple orders at the same price.
+* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now the bot can place the remaining ones in next the iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where the bot might have multiple orders at the same price.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).

@@ -16,6 +16,7 @@ import GeniusYield.Imports (printf)
 import GeniusYield.MarketMaker.Constants (awaitTxParams, logNS)
 import GeniusYield.MarketMaker.Prices
 import GeniusYield.MarketMaker.Strategies
+import GeniusYield.MarketMaker.User
 import GeniusYield.MarketMaker.Utils (
   DEXInfo (dexPORefs),
   addrFromSkey,
@@ -66,7 +67,7 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
   go userPOIs
 
 buildAndSubmitActions ∷ User → GYProviders → GYNetworkId → UserActions → DEXInfo → IO ()
-buildAndSubmitActions User {uSKey, uColl} providers netId ua di = flip catches handlers $ do
+buildAndSubmitActions User {uSKey, uColl, uStakeAddress} providers netId ua di = flip catches handlers $ do
   let userAddr = addrFromSkey netId uSKey
       placeActions = uaPlaces ua
       cancelActions = uaCancels ua
@@ -89,7 +90,7 @@ buildAndSubmitActions User {uSKey, uColl} providers netId ua di = flip catches h
           poaPrice
           Nothing
           Nothing
-          Nothing
+          (stakeAddressCredential . stakeAddressFromBech32 <$> uStakeAddress)
     buildCommon txBody
  where
   logWarn = gyLogWarning providers logNS

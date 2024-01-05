@@ -26,6 +26,7 @@ import GeniusYield.Api.Dex.PartialOrder (
 import GeniusYield.Imports (printf)
 import GeniusYield.MarketMaker.Constants (logNS, makerFeeRatio)
 import GeniusYield.MarketMaker.Prices
+import GeniusYield.MarketMaker.User (User (..))
 import GeniusYield.MarketMaker.Utils
 import GeniusYield.OrderBot.DataSource.Providers (Connection (..))
 import GeniusYield.OrderBot.OrderBook.AnnSet (
@@ -40,12 +41,6 @@ import GeniusYield.TxBuilder (
   runGYTxQueryMonadNode,
  )
 import GeniusYield.Types
-
-data User = User
-  { uSKey ∷ !GYPaymentSigningKey,
-    uColl ∷ !(Maybe (GYTxOutRef, Bool))
-  }
-  deriving stock (Generic, Show, Eq, Ord)
 
 data UserActions = UserActions
   { uaPlaces ∷ [PlaceOrderAction],

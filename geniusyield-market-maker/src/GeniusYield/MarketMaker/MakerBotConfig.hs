@@ -9,10 +9,11 @@ import Data.Aeson (
 import Data.String (IsString (..))
 import Deriving.Aeson
 import GeniusYield.Api.Dex.PartialOrder (PORefs (..))
-import GeniusYield.MarketMaker.MakerBot
+import GeniusYield.MarketMaker.MakerBot (MakerBot (..))
 import GeniusYield.MarketMaker.Orphans ()
 import GeniusYield.MarketMaker.Prices
 import GeniusYield.MarketMaker.Strategies
+import GeniusYield.MarketMaker.User
 import GeniusYield.MarketMaker.Utils
 import GeniusYield.Types
 import PlutusLedgerApi.V1 (Address)
@@ -20,19 +21,6 @@ import PlutusLedgerApi.V1.Scripts (ScriptHash)
 import PlutusLedgerApi.V1.Value (AssetClass)
 import Ply (ScriptRole (..), TypedScript, readTypedScript)
 import System.Envy (FromEnv (fromEnv), decodeEnv, env)
-
-data UserRaw = UserRaw
-  { urSKeyPath ∷ FilePath,
-    urColl ∷ Maybe GYTxOutRef
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] UserRaw
-
-getUser ∷ UserRaw → IO User
-getUser UserRaw {urSKeyPath, urColl} = do
-  let collateral = (,False) <$> urColl
-  uSKey ← readPaymentSigningKey urSKeyPath
-  pure $ User {uSKey = uSKey, uColl = collateral}
 
 data MakerBotConfig = MakerBotConfig
   { mbcUser ∷ !UserRaw,

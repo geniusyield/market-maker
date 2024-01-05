@@ -1,7 +1,8 @@
 {
   "mbc_user": {
     "ur_s_key_path": "path-to-skey",
-    "ur_coll": "tx-id#tx-ix"
+    "ur_coll": "tx-id#tx-ix",
+    "ur_stake_address": "bech32-encoded-stake-address"
   },
   "mbc_fp_nft_policy": "compiled-scripts/minting-policy",
   "mbc_fp_order_validator": "compiled-scripts/partial-order",

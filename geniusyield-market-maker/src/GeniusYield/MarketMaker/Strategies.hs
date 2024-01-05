@@ -226,24 +226,26 @@ fixedSpreadVsMarketPriceStrategy
                 logWarn providers $ "Bot has to place buy order(s), but lack funds, needed at least: " ++ show (stimes numNewBuyOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders because even if we have funds to place one order, out transaction build logic would see that and at least get that single one built successfully.
                 pure []
 
-      if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
-        then pure newBuyOrders
-        else do
-          let tokensToOfferPerOrder = availableSellBudget `quot` numNewSellOrders
-              neededAtleast = valueSingleton (stAc sToken) tokensToOfferPerOrder <> adaOverhead
-          if totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
-            then
-              pure
-                $ buildNewUserOrders
-                  scSpread
-                  (lovelaceSt, sToken)
-                  mp
-                  (fromIntegral $ availableSellBudget `quot` numNewSellOrders)
-                  (fromIntegral numNewSellOrders)
-                  False
-            else do
-              logWarn providers $ "Bot has to place sell order(s), but lack funds, needed at least: " ++ show (stimes numNewSellOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders.
-              pure []
+      newSellOrders ←
+        if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
+          then pure []
+          else do
+            let tokensToOfferPerOrder = availableSellBudget `quot` numNewSellOrders
+                neededAtleast = valueSingleton (stAc sToken) tokensToOfferPerOrder <> adaOverhead
+            if totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
+              then
+                pure
+                  $ buildNewUserOrders
+                    scSpread
+                    (lovelaceSt, sToken)
+                    mp
+                    (fromIntegral $ availableSellBudget `quot` numNewSellOrders)
+                    (fromIntegral numNewSellOrders)
+                    False
+              else do
+                logWarn providers $ "Bot has to place sell order(s), but lack funds, needed at least: " ++ show (stimes numNewSellOrders neededAtleast) -- We check for funds to place one order but in log describe inability for all orders.
+                pure []
+      pure $ newBuyOrders <> newSellOrders
 
     let placeUserActions = uaFromOnlyPlaces placeOrderActions
         cancelUserActions = uaFromOnlyCancels cancelOrderActions

@@ -89,7 +89,8 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
 {
   "mbc_user": {
     "ur_s_key_path": "path-to-skey",
-    "ur_coll": "tx-id#tx-ix"
+    "ur_coll": "tx-id#tx-ix",
+    "ur_stake_address": "bech32-encoded-stake-address"
   },
   "mbc_fp_nft_policy": "compiled-scripts/minting-policy",
   "mbc_fp_order_validator": "compiled-scripts/partial-order",
@@ -102,10 +103,10 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
   "mbc_delay": 120000000,
   "mbc_price_config": {
     "pc_api_key": "<<MAESTRO_TOKEN>>",
+    "pc_resolution": "15m",
     "pc_network_id": "mainnet",
     "pc_dex": "genius-yield",
     "pc_override": {
-      "mpo_commodity_token": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
       "mpo_pair": "ADA-GENS",
       "mpo_commodity_is_first": false
     }
@@ -127,19 +128,23 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
     "sc_cancel_threshold_product": 4
   },
   "mbc_token": {
-    "stAc": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
-    "stPrecision": 6
+    "ac": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
+    "precision": 6
   }
 }
 ```
-* `mbc_user` describes individual bot, it specifies `ur_s_key_path` which is the path to signing key file and `ur_coll` which is the UTxO reserved as collateral. Specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ada only UTxO (i.e., no other tokens besides ada).
-* Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is.
+* `mbc_user` describes individual bot.
+  * `ur_s_key_path` is the path to signing key file.
+  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ada only UTxO (i.e., no other tokens besides ada).
+  * `ur_stake_address` (optional) is the bech32 stake address (`stake_test1...` for testnet and `stake1...` for mainnet). If specified, bot would place orders at the mangled address so that ada in those orders (both as an offer or as received payment) would be staked. Note that if an order undergoes partial fill, received payment is in the generated order UTxO and is received by the author of order only when order is completely filled or is cancelled.
+* Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is. See sample files corresponding to the network to know for these values.
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
 * `mbc_price_config` gives the configuration on how to get market price using https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc Maestro endpoint, for a token.
   * `pc_api_key` is the Maestro API key.
+  * `pc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc).
   * `pc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
   * `pc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported.
-  * `pc_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for them, one can override the token given by `mpo_commodity_token` to pair with commodity token as described by `mpo_pair` & `mpo_commodity_is_first` respectively. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
+  * `pc_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for a corresponding mainnet token, one can specify desired (overriding) pair in `mpo_pair` & mention whether commodity is first token of the given pair or not in `mpo_commodity_is_first` field. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
 * `mbc_strategy_config` determines parameters for strategy:
 
   * `sc_spread` - Ratio representing `δ` as described before.
@@ -150,6 +155,7 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
     * `tv_sell_budget` - Total amount of commodity tokens that bot can cumulatively offer in the orders. In every iteration, bot determines the number of commodity tokens locked in the orders and subtracts it from `tv_sell_budget` field, let's call the obtained number `asb` (short for _available sell budget_) then it determines number of sell orders placed to be `⌊asb / tv_sell_min_vol⌋ = ns` where `ns` is short of number of sell orders. Now bot would place `ns` sell orders, each having offer amount as `⌊asb / ns⌋`.
     * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
     * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
+* `mbc_token` specifies the commodity token with it's precision. Note that this must not be ADA!
 
 ## Canceling all the orders using docker (simple)
 
@@ -186,8 +192,28 @@ cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-b
 
 The output should be similar like in the previous chapter.
 
-## Known Issues
+## Operational Costs
 
-* When bot tries to place multiple orders in a single iteration, it might happen that we pick same UTxO against different transaction skeletons (due to a [quirk](https://github.com/geniusyield/dex-contracts-api/blob/cf360d6c1db8185b646a34ed8f6bb330c23774bb/src/GeniusYield/Api/Dex/PartialOrder.hs#L489-L498) where place order operation specifies UTxO to be spent in skeleton itself), leading to successful building of only some of the transaction skeletons and thus only few of the orders might be successfully placed even though bot might very well have the required funds to place all. Now the bot can place the remaining ones in next the iteration but as of now, these next orders are placed starting with initial spread difference from market price leading to a situation where the bot might have multiple orders at the same price.
+Here we try to list costs which market maker incurs when interacting with our DEX which would help in better decision for configuration values such as _spread_.
+
+### Order placement
+
+Order placement incurs following fees besides usual transaction fees.
+
+* Flat fees: Every order is charged 1 ada flat maker fee on creation but order author will get this back only if order underwent no partial filling.
+* Percent fees: Every order is charged 0.3% of offered tokens on creation. If an order is cancelled afterwards, 0.3% percent would be charged only on the amount which actually got filled and remaining is refunded. As an example, support an order is created, offering 100 GENS. 0.3% of it is 0.3 GENS which is initially charged. Now if order is cancelled after only 60 GENS from it was consumed, then order author would get back 0.3% of 40 GENS namely, 0.12 GENS.
+
+### Order cancellation
+
+_tl;dr_ We group up to 6 order cancellations in a single transaction, fees incurred is usual transaction fee plus additional ada up to 0.5.
+
+Order cancellation is slightly complex.
+
+* Order underwent no fills: Only the usual network transaction fee is charged.
+* Order underwent some filling: In this case, ada taker fee might be added to this order or not. If it is added, only the usual network transaction fee is charged. However, if it is not added then as cancelling this order would require a fee output to GeniusYield address be generated, minimum ada requirement of this fee output must be satisfied which currently stands in worst case at slightly less than 1.5 ada. Now since maker certainly added 1 ada due to flat ada maker fee, it in worst case, would need to put additional 0.5 ada.
+
+### Equity monitoring
+
+Bot repeatedly logs for "equity" in terms of ada where ada equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ada and 500 GENS and if price of 1 GENS is 2 ada, then equity of wallet would be 1500 ada.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).

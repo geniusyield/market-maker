@@ -40,6 +40,7 @@ services:
           "mbc_delay": 120000000,
           "mbc_price_config": {
             "pc_api_key": "${MAESTRO_API_KEY}",
+            "pc_resolution": "15m",
             "pc_network_id": "${NETWORK:-mainnet}",
             "pc_dex": "genius-yield"
           },

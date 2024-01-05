@@ -155,7 +155,7 @@ fixedSpreadVsMarketPriceStrategy
   user
   sToken = do
     let (Connection nid providers, _) = orderBookPP pp
-        sTokenPair = mkMMTokenPair lovelaceSt sToken -- TODO: Currency is always lovelace. There is an assumption that lovelace is not part of @sTokens@ which should be made explicit in documentation.
+        sTokenPair = mkMMTokenPair lovelaceSt sToken
         userAddr = (addrFromSkey nid . uSKey) user
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread

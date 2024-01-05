@@ -154,8 +154,6 @@ mkOBMarketTokenInfo (Price marketPrice) spread sellOrders buyOrders =
   sumVolBuy ∷ Volume
   sumVolBuy = volumeGTPrice (Price (marketPrice - (marketPrice * spread))) buyOrders
 
-type MaestroMarketInfo = M.Map MMTokenPair Price
-
 getOrderBookPrices
   ∷ PricesProviders
   → [MMTokenPair]

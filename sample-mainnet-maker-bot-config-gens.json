@@ -1,7 +1,8 @@
 {
   "mbc_user": {
     "ur_s_key_path": "path-to-skey",
-    "ur_coll": "tx-id#tx-ix"
+    "ur_coll": "tx-id#tx-ix",
+    "ur_stake_address": "bech32-encoded-stake-address"
   },
   "mbc_fp_nft_policy": "compiled-scripts/minting-policy",
   "mbc_fp_order_validator": "compiled-scripts/partial-order",
@@ -14,6 +15,7 @@
   "mbc_delay": 120000000,
   "mbc_price_config": {
     "pc_api_key": "<<MAESTRO_TOKEN>>",
+    "pc_resolution": "15m",
     "pc_network_id": "mainnet",
     "pc_dex": "genius-yield"
   },
@@ -34,7 +36,7 @@
     "sc_cancel_threshold_product": 4
   },
   "mbc_token": {
-    "stAc": "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-    "stPrecision": 6
+    "ac": "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+    "precision": 6
   }
 }

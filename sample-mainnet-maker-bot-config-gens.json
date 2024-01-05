@@ -15,6 +15,7 @@
   "mbc_delay": 120000000,
   "mbc_price_config": {
     "pc_api_key": "<<MAESTRO_TOKEN>>",
+    "pc_resolution": "15m",
     "pc_network_id": "mainnet",
     "pc_dex": "genius-yield"
   },

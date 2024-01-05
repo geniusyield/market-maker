@@ -82,6 +82,7 @@ data MaestroPairOverride = MaestroPairOverride
 
 data PriceConfig = PriceConfig
   { pcApiKey ∷ !(Confidential Text),
+    pcResolution ∷ !Resolution,
     pcNetworkId ∷ !GYNetworkId,
     pcDex ∷ !Dex,
     pcOverride ∷ !(Maybe MaestroPairOverride)
@@ -91,6 +92,7 @@ data PriceConfig = PriceConfig
 
 data MaestroPP = MaestroPP
   { mppEnv ∷ !(MaestroEnv 'V1),
+    mppResolution ∷ !Resolution,
     mppDex ∷ !Dex,
     mppOverride ∷ !(Maybe MaestroPairOverride)
   }
@@ -116,6 +118,7 @@ buildPP c dex PriceConfig {..} =
     return
       MaestroPP
         { mppEnv = env,
+          mppResolution = pcResolution,
           mppDex = pcDex,
           mppOverride = pcOverride
         }
@@ -206,7 +209,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just Res5m) (Just Descending)
+  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
 
   let info = head ohlInfo
       curPrecision = mmtPrecision $ mmtpCurrency stp

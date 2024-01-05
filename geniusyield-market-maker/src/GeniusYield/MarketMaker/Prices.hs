@@ -43,35 +43,35 @@ data MaestroPriceException
   deriving stock (Show)
   deriving anyclass (Exception)
 
-data SimTokenPair = SimTokenPair
-  { currencySt ∷ SimToken,
-    commoditySt ∷ SimToken
+data MMToken = MMToken
+  { mmtAc ∷ GYAssetClass,
+    mmtPrecision ∷ Int
+  }
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[StripPrefix "mmt", LowerFirst]] MMToken
+
+lovelaceSt ∷ MMToken
+lovelaceSt = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
+
+data MMTokenPair = MMTokenPair
+  { mmtpCurrency ∷ MMToken,
+    mmtpCommodity ∷ MMToken
   }
   deriving stock (Eq, Ord, Show)
 
-mkSimTokenPair ∷ SimToken → SimToken → SimTokenPair
-mkSimTokenPair currSt commSt =
-  SimTokenPair
-    { currencySt = currSt,
-      commoditySt = commSt
+mkMMTokenPair ∷ MMToken → MMToken → MMTokenPair
+mkMMTokenPair currSt commSt =
+  MMTokenPair
+    { mmtpCurrency = currSt,
+      mmtpCommodity = commSt
     }
 
-toOAPair ∷ SimTokenPair → OrderAssetPair
-toOAPair SimTokenPair {currencySt, commoditySt} =
+toOAPair ∷ MMTokenPair → OrderAssetPair
+toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
   OAssetPair
-    { currencyAsset = stAc currencySt,
-      commodityAsset = stAc commoditySt
+    { currencyAsset = mmtAc mmtpCurrency,
+      commodityAsset = mmtAc mmtpCommodity
     }
-
-data SimToken = SimToken
-  { stAc ∷ GYAssetClass,
-    stPrecision ∷ Int
-  }
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving anyclass (FromJSON, ToJSON)
-
-lovelaceSt ∷ SimToken
-lovelaceSt = SimToken {stAc = GYLovelace, stPrecision = 6}
 
 data MaestroPairOverride = MaestroPairOverride
   { mpoPair ∷ !String,
@@ -131,7 +131,7 @@ data OBMarketTokenInfo = OBMarketTokenInfo
   }
   deriving stock (Show)
 
-type OBMarketInfo = M.Map SimTokenPair OBMarketTokenInfo
+type OBMarketInfo = M.Map MMTokenPair OBMarketTokenInfo
 
 mkOBMarketTokenInfo
   ∷ Price
@@ -151,11 +151,11 @@ mkOBMarketTokenInfo (Price marketPrice) spread sellOrders buyOrders =
   sumVolBuy ∷ Volume
   sumVolBuy = volumeGTPrice (Price (marketPrice - (marketPrice * spread))) buyOrders
 
-type MaestroMarketInfo = M.Map SimTokenPair Price
+type MaestroMarketInfo = M.Map MMTokenPair Price
 
 getOrderBookPrices
   ∷ PricesProviders
-  → [SimTokenPair]
+  → [MMTokenPair]
   → Price
   → Rational
   → IO (OBMarketInfo, MultiAssetOrderBook)
@@ -163,15 +163,15 @@ getOrderBookPrices PP {orderBookPP = (c, dex)} stps price priceCheckSpread = do
   maOrderBook ← populateOrderBook c dex (dexPORefs dex) (map toOAPair stps)
   return (M.fromList $ map buildPrice $ maOrderBookToList maOrderBook, maOrderBook)
  where
-  buildPrice ∷ (OrderAssetPair, OrderBook) → (SimTokenPair, OBMarketTokenInfo)
+  buildPrice ∷ (OrderAssetPair, OrderBook) → (MMTokenPair, OBMarketTokenInfo)
   buildPrice (oap, ob) =
     let stPair = toSTPair oap
         sndElement = uncurry (mkOBMarketTokenInfo price priceCheckSpread) . (sellOrders &&& buyOrders) $ ob
      in (stPair, sndElement)
 
-  toSTPair ∷ OrderAssetPair → SimTokenPair
+  toSTPair ∷ OrderAssetPair → MMTokenPair
   toSTPair OAssetPair {currencyAsset, commodityAsset} =
-    find (\SimTokenPair {..} → stAc currencySt == currencyAsset && stAc commoditySt == commodityAsset) stps
+    find (\MMTokenPair {..} → mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) stps
       & fromJust
 
 -- | Remove headers (if `MaestroError` contains `ClientError`).
@@ -189,7 +189,7 @@ handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
 getMaestroPrice
   ∷ PricesProviders
-  → SimTokenPair
+  → MMTokenPair
   → IO Price
 getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
   (pairName, commodityIsA) ← case mppOverride of
@@ -198,7 +198,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
       pure (pack mpoPair, mpoCommodityIsFirst)
     -- We are given commodity token and need to find pair name.
     Nothing → do
-      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError "getMaestroPrice - fetching dex pairs" <=< try $ pairsFromDex mppEnv mppDex)
+      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
 
       let go [] = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
@@ -206,11 +206,11 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError "getMaestroPrice - fetching price from pair" <=< try $ pricesFromDex mppEnv mppDex pair (Just Res5m) (Just Descending)
+  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just Res5m) (Just Descending)
 
   let info = head ohlInfo
-      curPrecision = stPrecision $ currencySt stp
-      comPrecision = stPrecision $ commoditySt stp
+      curPrecision = mmtPrecision $ mmtpCurrency stp
+      comPrecision = mmtPrecision $ mmtpCommodity stp
       precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
 
       price =
@@ -235,8 +235,10 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
                 (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
           )
 
-  findMatchingSTP ∷ (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe SimTokenPair
+  findMatchingSTP ∷ (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
   findMatchingSTP tokenA tokenB = fromRight Nothing $ do
     assetClassA ← assetClassFromMaestro tokenA
     assetClassB ← assetClassFromMaestro tokenB
-    Right $ if assetClassA == stAc (currencySt stp) && assetClassB == stAc (commoditySt stp) then Just stp else Nothing
+    Right $ if assetClassA == mmtAc (mmtpCurrency stp) && assetClassB == mmtAc (mmtpCommodity stp) then Just stp else Nothing
+
+  functionLocationIdent = "getMaestroPrice"

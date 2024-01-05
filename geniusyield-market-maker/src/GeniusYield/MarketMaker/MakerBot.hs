@@ -13,6 +13,7 @@ import GeniusYield.Api.Dex.PartialOrder (
   placePartialOrder,
  )
 import GeniusYield.Imports (printf)
+import GeniusYield.MarketMaker.Constants (awaitTxParams, logNS)
 import GeniusYield.MarketMaker.Prices
 import GeniusYield.MarketMaker.Strategies
 import GeniusYield.MarketMaker.Utils (
@@ -32,7 +33,7 @@ data MakerBot = MakerBot
     -- | Delay in microseconds between each iteration of execution strategy loop.
     mbDelay ∷ Int,
     -- | Non-ada token as other pair of the token is assumed to be ada.
-    mbToken ∷ SimToken
+    mbToken ∷ MMToken
   }
 
 -----------------------------------------------------------------------
@@ -43,9 +44,9 @@ cancelAllOrders ∷ MakerBot → GYNetworkId → GYProviders → DEXInfo → IO 
 cancelAllOrders MakerBot {mbUser} netId providers di = do
   let go ∷ [PartialOrderInfo] → IO ()
       go partialOrderInfos = do
-        gyLogInfo providers "MM" $ "---------- " ++ show (length partialOrderInfos) ++ " orders to cancel! -----------"
+        gyLogInfo providers logNS $ "---------- " ++ show (length partialOrderInfos) ++ " orders to cancel! -----------"
         when (null partialOrderInfos) $ do
-          gyLogInfo providers "MM" "---------- No more orders to cancel! -----------"
+          gyLogInfo providers logNS "---------- No more orders to cancel! -----------"
           exitSuccess
         let (batch, rest) = splitAt 6 partialOrderInfos
             userAddr = addrFromSkey netId $ uSKey mbUser
@@ -55,9 +56,9 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
         let signedTx =
               signGYTxBody txBody [uSKey mbUser]
         tid ← gySubmitTx providers signedTx
-        gyLogInfo providers "MM" $ "Submitted a cancel order batch: " ++ show tid
-        gyLogInfo providers "MM" "---------- Done for the block! -----------"
-        gyAwaitTxConfirmed providers (GYAwaitTxParameters {maxAttempts = 20, confirmations = 1, checkInterval = 20_000_000}) tid
+        gyLogInfo providers logNS $ "Submitted a cancel order batch: " ++ show tid
+        gyLogInfo providers logNS "---------- Done for the block! -----------"
+        gyAwaitTxConfirmed providers awaitTxParams tid
         go rest
   partialOrderInfos ← runGYTxQueryMonadNode netId providers $ runReaderT (partialOrders (dexPORefs di)) di
   let userPkh = pkhFromSkey . uSKey $ mbUser
@@ -91,8 +92,8 @@ buildAndSubmitActions User {uSKey, uColl} providers netId ua di = flip catches h
           Nothing
     buildCommon txBody
  where
-  logWarn = gyLogWarning providers "MM"
-  logInfo = gyLogInfo providers "MM"
+  logWarn = gyLogWarning providers logNS
+  logInfo = gyLogInfo providers logNS
 
   handlers =
     let handlerCommon ∷ Exception e ⇒ e → IO ()
@@ -112,9 +113,9 @@ buildAndSubmitActions User {uSKey, uColl} providers netId ua di = flip catches h
     logInfo $ "Successfully built body for above action, tx id: " <> show (txBodyTxId txBody)
     let tx = signGYTxBody txBody [uSKey]
     tid ← gySubmitTx providers tx
-    let numConfirms = 1
+    let numConfirms = confirmations awaitTxParams
     logInfo $ printf "Successfully submitted above tx, now waiting for %d confirmation(s)" numConfirms
-    gyAwaitTxConfirmed providers (GYAwaitTxParameters {checkInterval = 10_000_000, confirmations = numConfirms, maxAttempts = 30}) tid
+    gyAwaitTxConfirmed providers awaitTxParams tid
     logInfo $ printf "Tx successfully seen on chain with %d confirmation(s)" numConfirms
 
 executeStrategy
@@ -131,5 +132,5 @@ executeStrategy runStrategy MakerBot {mbUser, mbDelay, mbToken} netId providers 
 
     buildAndSubmitActions mbUser providers netId newActions di
 
-    gyLogInfo providers "MM" "---------- Done for the block! -----------"
+    gyLogInfo providers logNS "---------- Done for the block! -----------"
     threadDelay mbDelay

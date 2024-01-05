@@ -17,7 +17,6 @@
     "pc_network_id": "mainnet",
     "pc_dex": "genius-yield",
     "pc_override": {
-      "mpo_commodity_token": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
       "mpo_pair": "ADA-GENS",
       "mpo_commodity_is_first": false
     }
@@ -39,7 +38,7 @@
     "sc_cancel_threshold_product": 4
   },
   "mbc_token": {
-    "stAc": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
-    "stPrecision": 6
+    "ac": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
+    "precision": 6
   }
 }

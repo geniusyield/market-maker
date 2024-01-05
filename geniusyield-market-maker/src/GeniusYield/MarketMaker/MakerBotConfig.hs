@@ -41,7 +41,7 @@ data MakerBotConfig = MakerBotConfig
     mbcPOConfigAddr ∷ !GYAddressBech32,
     mbcPORefs ∷ !PORefs,
     mbcDelay ∷ !Int,
-    mbcToken ∷ !SimToken,
+    mbcToken ∷ !MMToken,
     mbcStrategyConfig ∷ !StrategyConfig,
     mbcPriceConfig ∷ !PriceConfig
   }

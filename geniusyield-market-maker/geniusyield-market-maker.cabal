@@ -118,7 +118,8 @@ executable geniusyield-market-maker-exe
     import:          common-deps
     import:          common-ghc-opts
     main-is:          Main.hs
-    other-modules: GeniusYield.MarketMaker.MakerBotConfig
+    other-modules: GeniusYield.MarketMaker.Constants
+                 , GeniusYield.MarketMaker.MakerBotConfig
                  , GeniusYield.MarketMaker.MakerBot
                  , GeniusYield.MarketMaker.Orphans
                  , GeniusYield.MarketMaker.Prices

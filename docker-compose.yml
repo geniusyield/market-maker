@@ -60,8 +60,8 @@ services:
             "sc_cancel_threshold_product": 4
           },
           "mbc_token": {
-            "stAc": "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-            "stPrecision": 6
+            "ac": "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+            "precision": 6
           }
         }
     restart: always

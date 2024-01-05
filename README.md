@@ -10,7 +10,7 @@ Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implem
 > [!NOTE]
 > **Order classification and price**
 >
-> We call non-ada tokens as _commodity_ and ada as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
+> We call non-ADA tokens as _commodity_ and ADA as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
 >
 > _Price_ is described in display unit[^1] of currency token per display unit of commodity token.
 
@@ -133,10 +133,10 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
   }
 }
 ```
-* `mbc_user` describes individual bot.
+* `mbc_user` describes bot's wallet.
   * `ur_s_key_path` is the path to signing key file.
-  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ada only UTxO (i.e., no other tokens besides ada).
-  * `ur_stake_address` (optional) is the bech32 stake address (`stake_test1...` for testnet and `stake1...` for mainnet). If specified, bot would place orders at the mangled address so that ada in those orders (both as an offer or as received payment) would be staked. Note that if an order undergoes partial fill, received payment is in the generated order UTxO and is received by the author of order only when order is completely filled or is cancelled.
+  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
+  * `ur_stake_address` (optional) is the bech32 stake address (`stake_test1...` for testnet and `stake1...` for mainnet). If specified, bot would place orders at the mangled address so that ADA in those orders (both as an offer or as received payment) would be staked. Note that if an order undergoes partial fill, received payment is in the generated order UTxO and is received by the author of order only when order is completely filled or is cancelled.
 * Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is. See sample files corresponding to the network to know for these values.
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
 * `mbc_price_config` gives the configuration on how to get market price using https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc Maestro endpoint, for a token.
@@ -200,20 +200,20 @@ Here we try to list costs which market maker incurs when interacting with our DE
 
 Order placement incurs following fees besides usual transaction fees.
 
-* Flat fees: Every order is charged 1 ada flat maker fee on creation but order author will get this back only if order underwent no partial filling.
+* Flat fees: Every order is charged 1 ADA flat maker fee on creation but order author will get this back only if order underwent no partial filling.
 * Percent fees: Every order is charged 0.3% of offered tokens on creation. If an order is cancelled afterwards, 0.3% percent would be charged only on the amount which actually got filled and remaining is refunded. As an example, support an order is created, offering 100 GENS. 0.3% of it is 0.3 GENS which is initially charged. Now if order is cancelled after only 60 GENS from it was consumed, then order author would get back 0.3% of 40 GENS namely, 0.12 GENS.
 
 ### Order cancellation
 
-_tl;dr_ We group up to 6 order cancellations in a single transaction, fees incurred is usual transaction fee plus additional ada up to 0.5.
+_tl;dr_ We group up to 6 order cancellations in a single transaction, fees incurred is usual transaction fee plus additional ADA up to 0.5.
 
 Order cancellation is slightly complex.
 
 * Order underwent no fills: Only the usual network transaction fee is charged.
-* Order underwent some filling: In this case, ada taker fee might be added to this order or not. If it is added, only the usual network transaction fee is charged. However, if it is not added then as cancelling this order would require a fee output to GeniusYield address be generated, minimum ada requirement of this fee output must be satisfied which currently stands in worst case at slightly less than 1.5 ada. Now since maker certainly added 1 ada due to flat ada maker fee, it in worst case, would need to put additional 0.5 ada.
+* Order underwent some filling: In this case, ADA taker fee might be added to this order or not. If it is added, only the usual network transaction fee is charged. However, if it is not added then as cancelling this order would require a fee output to GeniusYield address be generated, minimum ADA requirement of this fee output must be satisfied which currently stands in worst case at slightly less than 1.5 ADA. Now since maker certainly added 1 ADA due to flat ADA maker fee, it in worst case, would need to put additional 0.5 ADA.
 
 ### Equity monitoring
 
-Bot repeatedly logs for "equity" in terms of ada where ada equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ada and 500 GENS and if price of 1 GENS is 2 ada, then equity of wallet would be 1500 ada.
+Bot repeatedly logs for "equity" in terms of ADA where ADA equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ADA and 500 GENS and if price of 1 GENS is 2 ADA, then equity of wallet would be 1500 ADA.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).

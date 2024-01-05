@@ -33,7 +33,7 @@ data MakerBot = MakerBot
     mbUser ∷ User,
     -- | Delay in microseconds between each iteration of execution strategy loop.
     mbDelay ∷ Int,
-    -- | Non-ada token as other pair of the token is assumed to be ada.
+    -- | Non-ADA token as other pair of the token is assumed to be ADA.
     mbToken ∷ MMToken
   }
 

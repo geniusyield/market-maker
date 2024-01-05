@@ -201,16 +201,16 @@ Here we try to list costs which market maker incurs when interacting with our DE
 Order placement incurs following fees besides usual transaction fees.
 
 * Flat fees: Every order is charged 1 ADA flat maker fee on creation but order author will get this back only if order underwent no partial filling.
-* Percent fees: Every order is charged 0.3% of offered tokens on creation. If an order is cancelled afterwards, 0.3% percent would be charged only on the amount which actually got filled and remaining is refunded. As an example, support an order is created, offering 100 GENS. 0.3% of it is 0.3 GENS which is initially charged. Now if order is cancelled after only 60 GENS from it was consumed, then order author would get back 0.3% of 40 GENS namely, 0.12 GENS.
+* Percent fees: Every order is charged 0.3% of offered tokens on creation. If an order is cancelled afterwards, 0.3% percent would be charged only on the amount which actually got filled and remaining is refunded. As an example, suppose an order is created - offering 100 GENS. 0.3% of it is 0.3 GENS, which is initially charged. Now if this order is cancelled after only 60 GENS from it was consumed, then order author would get back 0.3% of 40 GENS namely, 0.12 GENS.
 
 ### Order cancellation
 
-_tl;dr_ We group up to 6 order cancellations in a single transaction, fees incurred is usual transaction fee plus additional ADA up to 0.5.
+_tl;dr_ We group up to 6 order cancellations in a single transaction, fees incurred is usual transaction fee plus additional ADA up to 0.5, in worst case.
 
 Order cancellation is slightly complex.
 
 * Order underwent no fills: Only the usual network transaction fee is charged.
-* Order underwent some filling: In this case, ADA taker fee might be added to this order or not. If it is added, only the usual network transaction fee is charged. However, if it is not added then as cancelling this order would require a fee output to GeniusYield address be generated, minimum ADA requirement of this fee output must be satisfied which currently stands in worst case at slightly less than 1.5 ADA. Now since maker certainly added 1 ADA due to flat ADA maker fee, it in worst case, would need to put additional 0.5 ADA.
+* Order underwent some filling: In this case, ADA taker fee might be added to this order or not. If it is added, only the usual network transaction fee is charged. However, if it is not added then as cancelling this order would require a fee output to GeniusYield address be generated, minimum ADA requirement of this fee output must be satisfied which currently stands in worst case at slightly less than 1.5 ADA. Now since maker certainly added 1 ADA due to flat ADA maker fee, it in worst case, would need to put additional 0.5 ADA. Note that we split orders to be cancelled in set of size 6 and then submit cancellation transaction for each of these sets. Thus if there are 6 orders to be cancelled for in a single set, then this additional 0.5 ADA, if needed, is shared across these 6 orders as fee output is to be generated once per transaction and not once per order. As a further illustration, if the bot had 13 orders to cancel, we will generate 3 sets of sizes 6, 6 & 1 and thus submit 3 cancellation transactions.
 
 ### Equity monitoring
 

@@ -15,4 +15,4 @@ logNS = "MM"
 
 -- TODO: Get it from blockchain instead.
 makerFeeRatio ∷ Rational
-makerFeeRatio = 3 % 100
+makerFeeRatio = 3 % 1000 -- Is 0.3%, so ratio should be 0.003 == 3 / 1000.

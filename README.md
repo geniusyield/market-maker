@@ -10,11 +10,11 @@ Market maker bot for [GeniusYield](https://www.geniusyield.co/) DEX which implem
 > [!NOTE]
 > **Order classification and price**
 >
-> We call non-ADA tokens as _commodity_ and ADA as _currency_. Order offering currency in exchange of commodity is called as _buy order_ whereas order offering commodity in exchange of currency is called as _sell order_.
+> In the following, we call any non-ADA token _commodity_, and we call ADA _currency_. An order offering currency in exchange for commodity is called a _buy order_, whereas an order offering commodity in exchange for currency is called a _sell order_.
 >
 > _Price_ is described in display unit[^1] of currency token per display unit of commodity token.
 
-Given a market price `M` and a variable `δ` defined as _spread_, bot would place following orders where exact number and volume is determined by configuration:
+Given a market price `M` and a variable `δ` defined as _spread_, the bot would place the following orders, where exact numbers and volumes are determined by the configuration:
 
 * Buy orders at price:
   * `M * (1 - δ)`
@@ -25,9 +25,9 @@ Given a market price `M` and a variable `δ` defined as _spread_, bot would plac
   * `M * (1 + δ)`
   * `M * (1 + δ + δ / 2)`
   * `M * (1 + δ + δ / 2 + δ / 2)`
-  * And so on, where `n`th sell order's price is given by `M * (1 + δ + (n - 1) * δ / 2)`.
+  * And so on, where the `n`th sell order's price is given by `M * (1 + δ + (n - 1) * δ / 2)`.
 
-If market price has drifted way higher (_"way higher"_ as directed by configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, they would be canceled.
+If the market price has drifted way higher (_"way higher"_ as directed by the configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, those sell orders would be canceled.
 
 ## Running the market maker bot: Using docker compose (simple)
 
@@ -56,7 +56,13 @@ As in the example above; the following environment variables must be specified b
 
 The configuration values used for these environment variables in the example above are just placeholders. These must be replaced by your own
 configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
-sending funds to the address controlled by the payment signing key.
+sending funds to the address given by the payment signing key and the (optional) stake address.
+
+In order to determine this address, you could use `cardano-cli address build`, but you can also just run the market maker - the address will be printed to the console in the first line of output:
+
+```
+Genius Yield Market Maker: <MARKET MAKER ADDRESS>
+```
 
 Maestro API keys are available after registration via the following link:
  - https://docs.gomaestro.org/Getting-started/Sign-up-login

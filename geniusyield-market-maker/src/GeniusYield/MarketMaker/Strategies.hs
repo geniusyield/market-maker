@@ -1,50 +1,40 @@
 module GeniusYield.MarketMaker.Strategies where
 
-import Control.Applicative ((<|>))
-import Control.Monad (unless)
-import Data.Foldable
-import Data.Function ((&))
-import Data.Functor ((<&>))
-import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust, mapMaybe)
-import Data.Ratio (
-  denominator,
-  numerator,
-  (%),
- )
-import Data.Semigroup (Semigroup (stimes))
-import Deriving.Aeson
-import GHC.Natural (naturalFromInteger)
-import GeniusYield.AnnSet.Internal (
-  orderInfo,
-  toAscList,
- )
-import GeniusYield.Api.Dex.PartialOrder (
-  PartialOrderInfo (..),
-  poiGetContainedFeeValue,
- )
-import GeniusYield.Imports (printf)
-import GeniusYield.MarketMaker.Constants (logNS, makerFeeRatio)
-import GeniusYield.MarketMaker.Prices
-import GeniusYield.MarketMaker.User (User (..))
-import GeniusYield.MarketMaker.Utils
-import GeniusYield.OrderBot.DataSource.Providers (Connection (..))
-import GeniusYield.OrderBot.OrderBook.AnnSet (
-  MultiAssetOrderBook,
-  OrderBook (..),
-  Orders (unOrders),
-  withEachAsset,
- )
-import GeniusYield.OrderBot.Types
-import GeniusYield.TxBuilder (
-  GYTxQueryMonad (utxosAtAddress),
-  runGYTxQueryMonadNode,
- )
-import GeniusYield.Types
+import           Control.Applicative                       ((<|>))
+import           Control.Monad                             (unless)
+import           Data.Foldable
+import           Data.Function                             ((&))
+import           Data.Functor                              ((<&>))
+import qualified Data.Map.Strict                           as M
+import           Data.Maybe                                (fromJust, mapMaybe)
+import           Data.Ratio                                (denominator,
+                                                            numerator, (%))
+import           Data.Semigroup                            (Semigroup (stimes))
+import           Deriving.Aeson
+import           GeniusYield.AnnSet.Internal               (orderInfo,
+                                                            toAscList)
+import           GeniusYield.Api.Dex.PartialOrder          (PartialOrderInfo (..),
+                                                            poiGetContainedFeeValue)
+import           GeniusYield.Imports                       (printf)
+import           GeniusYield.MarketMaker.Constants         (logNS,
+                                                            makerFeeRatio)
+import           GeniusYield.MarketMaker.Prices
+import           GeniusYield.MarketMaker.User              (User (..))
+import           GeniusYield.MarketMaker.Utils
+import           GeniusYield.OrderBot.DataSource.Providers (Connection (..))
+import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
+                                                            OrderBook (..),
+                                                            Orders (unOrders),
+                                                            withEachAsset)
+import           GeniusYield.OrderBot.Types
+import           GeniusYield.TxBuilder                     (GYTxQueryMonad (utxosAtAddress),
+                                                            runGYTxQueryMonadNode)
+import           GeniusYield.Types
+import           GHC.Natural                               (naturalFromInteger)
 
 data UserActions = UserActions
-  { uaPlaces ∷ [PlaceOrderAction],
-    uaCancels ∷ [CancelOrderAction]
+  { uaPlaces  :: [PlaceOrderAction],
+    uaCancels :: [CancelOrderAction]
   }
   deriving stock (Show)
 
@@ -62,54 +52,54 @@ instance Monoid UserActions where
         uaCancels = []
       }
 
-uaFromOnlyPlaces ∷ [PlaceOrderAction] → UserActions
+uaFromOnlyPlaces :: [PlaceOrderAction]-> UserActions
 uaFromOnlyPlaces poas = mempty {uaPlaces = poas}
 
-uaFromOnlyCancels ∷ [CancelOrderAction] → UserActions
+uaFromOnlyCancels :: [CancelOrderAction] -> UserActions
 uaFromOnlyCancels coas = mempty {uaCancels = coas}
 
 data PlaceOrderAction = PlaceOrderAction
-  { poaOfferedAsset ∷ !GYAssetClass,
-    poaOfferedAmount ∷ !Natural,
-    poaAskedAsset ∷ !GYAssetClass,
-    poaPrice ∷ !GYRational
+  { poaOfferedAsset  :: !GYAssetClass,
+    poaOfferedAmount :: !Natural,
+    poaAskedAsset    :: !GYAssetClass,
+    poaPrice         :: !GYRational
   }
   deriving stock (Show)
 
-newtype CancelOrderAction = CancelOrderAction {coaPoi ∷ PartialOrderInfo}
+newtype CancelOrderAction = CancelOrderAction {coaPoi :: PartialOrderInfo}
   deriving stock (Show)
 
-type Strategy = PricesProviders → User → MMToken → IO UserActions
+type Strategy = PricesProviders -> User -> MMToken -> IO UserActions
 
 data StrategyConfig = StrategyConfig
-  { scSpread ∷ !Rational,
-    scPriceCheckProduct ∷ !Integer,
-    scCancelThresholdProduct ∷ !Integer,
-    scTokenVolume ∷ !TokenVol
+  { scSpread                 :: !Rational,
+    scPriceCheckProduct      :: !Integer,
+    scCancelThresholdProduct :: !Integer,
+    scTokenVolume            :: !TokenVol
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] StrategyConfig
 
 data TokenVol = TokenVol
-  { tvSellMinVol ∷ !Integer,
-    tvBuyMinVol ∷ !Integer,
-    tvSellBudget ∷ !Integer,
-    tvBuyBudget ∷ !Integer,
-    tvSellVolThreshold ∷ !Integer,
-    tvBuyVolThreshold ∷ !Integer
+  { tvSellMinVol       :: !Integer,
+    tvBuyMinVol        :: !Integer,
+    tvSellBudget       :: !Integer,
+    tvBuyBudget        :: !Integer,
+    tvSellVolThreshold :: !Integer,
+    tvBuyVolThreshold  :: !Integer
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TokenVol
 
 -- | Uses a `MultiAssetOrderBook` to call `filterOwnOrders`.
 getOwnOrders
-  ∷ [MMTokenPair]
-  → [User]
-  → MultiAssetOrderBook
-  → M.Map User [(MMTokenPair, PartialOrderInfo)]
+  :: [MMTokenPair]
+  -> [User]
+  -> MultiAssetOrderBook
+  -> M.Map User [(MMTokenPair, PartialOrderInfo)]
 getOwnOrders stps users maob =
-  let sOrders = withEachAsset (\_ ob → toAscList $ unOrders $ sellOrders ob) maob
-      bOrders = withEachAsset (\_ ob → toAscList $ unOrders $ buyOrders ob) maob
+  let sOrders = withEachAsset (\_ ob -> toAscList $ unOrders $ sellOrders ob) maob
+      bOrders = withEachAsset (\_ ob -> toAscList $ unOrders $ buyOrders ob) maob
    in filterOwnOrders stps users (map (poi . orderInfo) sOrders ++ map (poi . orderInfo) bOrders)
 
 {- | Given a list of relevant `MMTokenPair`'s, a list of users and a list of
@@ -117,33 +107,33 @@ getOwnOrders stps users maob =
       that belong to that user and trade in one of the relevant pairs.
 -}
 filterOwnOrders
-  ∷ [MMTokenPair]
-  → [User]
-  → [PartialOrderInfo]
-  → M.Map User [(MMTokenPair, PartialOrderInfo)]
+  :: [MMTokenPair]
+  -> [User]
+  -> [PartialOrderInfo]
+  -> M.Map User [(MMTokenPair, PartialOrderInfo)]
 filterOwnOrders stps users allOrders =
-  let usersPkh = map (pkhFromSkey . uSKey) users
+  let usersPkh = pkhUser <$> users
       ourPOIs = filter (flip elem usersPkh . poiOwnerKey) allOrders
       relevantTokensPOIs = mapMaybe (filterTokenPair stps) ourPOIs
-      finalMap = foldl' (\acc (stp, poi) → M.unionWith (++) acc (M.singleton (lookupUser poi) [(stp, poi)])) mempty relevantTokensPOIs
+      finalMap = foldl' (\acc (stp, poi) -> M.unionWith (++) acc (M.singleton (lookupUser poi) [(stp, poi)])) mempty relevantTokensPOIs
    in finalMap
  where
-  filterTokenPair ∷ [MMTokenPair] → PartialOrderInfo → Maybe (MMTokenPair, PartialOrderInfo)
+  filterTokenPair :: [MMTokenPair] -> PartialOrderInfo -> Maybe (MMTokenPair, PartialOrderInfo)
   filterTokenPair sTokenPairs poi@PartialOrderInfo {poiOfferedAsset, poiAskedAsset} =
     findStp assetPair1 <|> findStp assetPair2 <&> (,poi)
    where
     assetPair1 = mkOrderAssetPair poiOfferedAsset poiAskedAsset
     assetPair2 = mkOrderAssetPair poiAskedAsset poiOfferedAsset
 
-    findStp ∷ OrderAssetPair → Maybe MMTokenPair
-    findStp ap = find (\stp → ap == toOAPair stp) sTokenPairs
+    findStp :: OrderAssetPair -> Maybe MMTokenPair
+    findStp ap = find (\stp -> ap == toOAPair stp) sTokenPairs
 
-  lookupUser ∷ PartialOrderInfo → User
+  lookupUser :: PartialOrderInfo -> User
   lookupUser PartialOrderInfo {poiOwnerKey} =
     fromJust
-      $ find ((==) poiOwnerKey . pkhFromSkey . uSKey) users
+      $ find ((==) poiOwnerKey . pkhUser) users
 
-fixedSpreadVsMarketPriceStrategy ∷ StrategyConfig → Strategy
+fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
   StrategyConfig
     { scSpread,
@@ -156,7 +146,7 @@ fixedSpreadVsMarketPriceStrategy
   sToken = do
     let (Connection nid providers, _) = orderBookPP pp
         sTokenPair = mkMMTokenPair lovelaceSt sToken
-        userAddr = (addrFromSkey nid . uSKey) user
+        userAddr = addrUser nid user
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
 
@@ -170,11 +160,11 @@ fixedSpreadVsMarketPriceStrategy
     let ownOrdersPerUser = getOwnOrders [sTokenPair] [user] maob
         allOwnOrders = M.foldr (++) [] ownOrdersPerUser
         equityOnOrders = sum $ map (getEquityFromOrder mp) allOwnOrders
-        totalValueOnUtxos = foldlUTxOs' (\acc utxo → acc <> utxoValue utxo) mempty ownUtxos
-        equityOnUtxos = foldl' (\acc (_, n) → acc + n) 0 $ valueToList $ valueMap (getEquityFromValue mp) totalValueOnUtxos
+        totalValueOnUtxos = foldlUTxOs' (\acc utxo -> acc <> utxoValue utxo) mempty ownUtxos
+        equityOnUtxos = foldl' (\acc (_, n) -> acc + n) 0 $ valueToList $ valueMap (getEquityFromValue mp) totalValueOnUtxos
 
         cancelOrderActions =
-          map (\(_, poi) → CancelOrderAction poi)
+          map (\(_, poi) -> CancelOrderAction poi)
             $ ordersToBeRemoved mp cancelThreshold allOwnOrders
 
         relevantSTP = mkMMTokenPair lovelaceSt sToken
@@ -194,15 +184,15 @@ fixedSpreadVsMarketPriceStrategy
             } = scTokenVolume
 
           (sellVol, buyVol) = case mtInfo of
-            Nothing → (0, 0)
-            Just OBMarketTokenInfo {mtSellVol, mtBuyVol} → (mtSellVol, mtBuyVol)
+            Nothing -> (0, 0)
+            Just OBMarketTokenInfo {mtSellVol, mtBuyVol} -> (mtSellVol, mtBuyVol)
 
           availableBuyBudget = max 0 (tvBuyBudget - fromIntegral lockedLovelaces)
           availableSellBudget = max 0 (tvSellBudget - fromIntegral lockedTokens)
           numNewBuyOrders = availableBuyBudget `quot` tvBuyMinVol
           numNewSellOrders = availableSellBudget `quot` tvSellMinVol
           adaOverhead = valueFromLovelace 5_000_000
-          subtractTillZero ∷ GYValue → GYValue → Natural → Natural
+          subtractTillZero :: GYValue -> GYValue -> Natural -> Natural
           subtractTillZero val sub acc = if val `valueGreaterOrEqual` sub then subtractTillZero (val `valueMinus` sub) sub (acc + 1) else acc
 
       (newBuyOrders, totalValueOnUtxosAfterBuyOrds) ←
@@ -269,13 +259,13 @@ fixedSpreadVsMarketPriceStrategy
     return $ placeUserActions <> cancelUserActions
    where
     buildNewUserOrders
-      ∷ Rational
-      → (MMToken, MMToken)
-      → Price
-      → Natural
-      → Natural
-      → Bool
-      → [PlaceOrderAction]
+      :: Rational
+      -> (MMToken, MMToken)
+      -> Price
+      -> Natural
+      -> Natural
+      -> Bool
+      -> [PlaceOrderAction]
     buildNewUserOrders delta' (ask, off) p tokenQ nOrders toInverse =
       let p' = getPrice p
           poi n =
@@ -287,7 +277,7 @@ fixedSpreadVsMarketPriceStrategy
                     poaPrice = rationalFromGHC $ if toInverse then denominator newMPrice % numerator newMPrice else newMPrice
                   }
        in if nOrders == 0 then [] else map poi [0 .. (nOrders - 1)] -- `nOrders` has type `Natural` thus subtracting from zero can give arithmetic exception.
-    getEquityFromOrder ∷ Price → (MMTokenPair, PartialOrderInfo) → Natural
+    getEquityFromOrder :: Price -> (MMTokenPair, PartialOrderInfo) -> Natural
     getEquityFromOrder price (_stp, poi) =
       let ownFunds = getOrderOwnFunds poi
           priceOfNonAdaToken nonAdaAC = floor $ fromIntegral (valueAssetClass ownFunds nonAdaAC) * getPrice price
@@ -304,30 +294,30 @@ fixedSpreadVsMarketPriceStrategy
       --                  * Initial deposit.
       --                  * Collected fees.
       --
-      getOrderOwnFunds ∷ PartialOrderInfo → GYValue
+      getOrderOwnFunds :: PartialOrderInfo -> GYValue
       getOrderOwnFunds PartialOrderInfo {..} =
         let toSubtract = valueSingleton (GYToken poiNFTCS poiNFT) 1 <> poiGetContainedFeeValue poi
          in poiUTxOValue `valueMinus` toSubtract
 
-    getEquityFromValue ∷ Price → GYAssetClass → Integer → Integer
+    getEquityFromValue :: Price -> GYAssetClass -> Integer -> Integer
     getEquityFromValue _ GYLovelace n = n
-    getEquityFromValue (getPrice → price) _ac n =
+    getEquityFromValue (getPrice -> price) _ac n =
       floor $ price * fromInteger n
 
-    getOrdersLockedValue ∷ MMTokenPair → MMToken → [(MMTokenPair, PartialOrderInfo)] → Natural
+    getOrdersLockedValue :: MMTokenPair -> MMToken -> [(MMTokenPair, PartialOrderInfo)] -> Natural
     getOrdersLockedValue stp st orders =
       let relevantOfferedAc = mmtAc st
-          relevantOrders = filter (\(oStp, oPoi) → oStp == stp && relevantOfferedAc == poiOfferedAsset oPoi) orders
+          relevantOrders = filter (\(oStp, oPoi) -> oStp == stp && relevantOfferedAc == poiOfferedAsset oPoi) orders
        in sum $ map (poiOfferedAmount . snd) relevantOrders
 
-    logInfo, logDebug, logWarn ∷ GYProviders → String → IO ()
+    logInfo, logDebug, logWarn :: GYProviders -> String -> IO ()
     logInfo providers = gyLogInfo providers logNS
     logDebug providers = gyLogDebug providers logNS
     logWarn providers = gyLogWarning providers logNS
 
-    logPlaceAction ∷ PlaceOrderAction → String
+    logPlaceAction :: PlaceOrderAction -> String
     logPlaceAction PlaceOrderAction {..} =
-      let price = (fromRational (rationalToGHC poaPrice) ∷ Double)
+      let price = (fromRational (rationalToGHC poaPrice) :: Double)
           adjustedPrice = 1 / price
        in unwords
             [ "Selling",
@@ -341,26 +331,26 @@ fixedSpreadVsMarketPriceStrategy
               show adjustedPrice,
               ")"
             ]
-    logMaestroMarketInfo ∷ Price → String
+    logMaestroMarketInfo :: Price -> String
     logMaestroMarketInfo price =
       unwords
         [ "Price for:",
           prettyAc $ mmtAc sToken,
           "is",
-          show (fromRational (getPrice price) ∷ Double)
+          show (fromRational (getPrice price) :: Double)
         ]
 
-    prettyAc ∷ GYAssetClass → String
-    prettyAc GYLovelace = "lovelaces"
+    prettyAc :: GYAssetClass -> String
+    prettyAc GYLovelace     = "lovelaces"
     prettyAc (GYToken _ tn) = "indivisible of " ++ show tn
 
-ordersToBeRemoved ∷ Price → Rational → [(MMTokenPair, PartialOrderInfo)] → [(MMTokenPair, PartialOrderInfo)]
+ordersToBeRemoved :: Price -> Rational -> [(MMTokenPair, PartialOrderInfo)] -> [(MMTokenPair, PartialOrderInfo)]
 ordersToBeRemoved price cancelLimitSpread = filter (orderIsToBeRemoved price cancelLimitSpread)
 
-orderIsToBeRemoved ∷ Price → Rational → (MMTokenPair, PartialOrderInfo) → Bool
+orderIsToBeRemoved :: Price -> Rational -> (MMTokenPair, PartialOrderInfo) -> Bool
 orderIsToBeRemoved mPrice cancelLimitSpread (stp, poi) =
   let marketPrice = getPrice mPrice
       oap = toOAPair stp
    in case mkOrderInfo oap poi of
-        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} → getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
-        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} → getPrice price > marketPrice + (cancelLimitSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (cancelLimitSpread * marketPrice)

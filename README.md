@@ -29,6 +29,22 @@ Given a market price `M` and a variable `δ` defined as _spread_, the bot would 
 
 If the market price has drifted way higher (_"way higher"_ as directed by the configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, those sell orders would be canceled.
 
+## Running the market maker bot: System requirements
+
+Minimum System Requirements:
+Memory: 500 MB
+CPU: 0.5vCPU (2.25 GHz CPU Base Frequency)
+Reliable and fast internet connection
+
+Recommended System Requirements:
+Memory: 1GB
+CPU: 1vCPU (2.25 GHz CPU Base Frequency)
+Reliable and blasingly fast internet connection
+
+The Market Maker Bot does not require much resources. If you choose to use the Kupo provider and run the Cardano Node yourself, that needs much more resources, especially on the Cardano Mainnet.
+
+For the exact requirements please see current Cardano Node documentation
+
 ## Running the market maker bot: Using docker compose (simple)
 
 The simplest way to start an MM bot instance is by using Docker compose.

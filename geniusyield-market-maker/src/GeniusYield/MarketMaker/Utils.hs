@@ -3,8 +3,7 @@ module GeniusYield.MarketMaker.Utils where
 import qualified Data.Text                        as Text
 import           GeniusYield.Api.Dex.PartialOrder (PORefs)
 import           GeniusYield.Imports              (coerce, first)
-import           GeniusYield.MarketMaker.User     (User (..),
-                                                   stakeAddressFromBech32)
+import           GeniusYield.MarketMaker.User     (User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
 import           GeniusYield.Scripts              (HasPartialOrderConfigAddr (..),
                                                    HasPartialOrderNftScript (..),

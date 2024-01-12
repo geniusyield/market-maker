@@ -86,7 +86,7 @@ buildAndSubmitActions user@User {uSKey, uColl, uStakeAddress} providers netId ua
           poaPrice
           Nothing
           Nothing
-          (stakeAddressCredential . stakeAddressFromBech32 <$> uStakeAddress)
+          (stakeAddressToCredential . stakeAddressFromBech32 <$> uStakeAddress)
     buildCommon txBody
  where
   logWarn = gyLogWarning providers logNS

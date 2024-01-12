@@ -34,7 +34,7 @@ data MakerBotConfig = MakerBotConfig
     mbcPriceConfig ∷ !PriceConfig
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MakerBotConfig
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MakerBotConfig
 
 instance FromEnv MakerBotConfig where
   fromEnv _ =

@@ -88,7 +88,7 @@ data PriceConfig = PriceConfig
     pcOverride ∷ !(Maybe MaestroPairOverride)
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 
 data MaestroPP = MaestroPP
   { mppEnv ∷ !(MaestroEnv 'V1),

@@ -3,8 +3,7 @@ module GeniusYield.MarketMaker.Utils where
 import qualified Data.Text                        as Text
 import           GeniusYield.Api.Dex.PartialOrder (PORefs)
 import           GeniusYield.Imports              (coerce, first)
-import           GeniusYield.MarketMaker.User     (User (..),
-                                                   stakeAddressFromBech32)
+import           GeniusYield.MarketMaker.User     (User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
 import           GeniusYield.Scripts              (HasPartialOrderConfigAddr (..),
                                                    HasPartialOrderNftScript (..),
@@ -22,7 +21,7 @@ pkhUser = pubKeyHash . paymentVerificationKey . uSKey
 addrUser :: GYNetworkId -> User -> GYAddress
 addrUser netId user = addressFromCredential netId
   (GYPaymentCredentialByKey $ pkhUser user)
-  (stakeAddressCredential . stakeAddressFromBech32 <$> uStakeAddress user)
+  (stakeAddressToCredential . stakeAddressFromBech32 <$> uStakeAddress user)
 
 -- | Convert Maestro's asset class to our GY type.
 assetClassFromMaestro :: (Maestro.TokenName, Maestro.PolicyId) → Either SomeDeserializeError GYAssetClass

@@ -34,8 +34,8 @@ package strict-containers
 source-repository-package
   type: git
   location: https://github.com/geniusyield/dex-contracts-api
-  tag: 9958453df76f8cf3e060ae53e2140979cdb96f98
-  --sha256: sha256-2EAGPm5CvHJJ5zvYBQig2DU1xH/fsBXQVnZ2EtTgR9c=
+  tag: 8087ed4da70512cf2327f353d5a3a590511be0b6
+  --sha256: sha256-Fw9OdzGrvteW1asVctmqkZa8k4G6osgvFDleNozYjW4=
 
 source-repository-package
   type: git

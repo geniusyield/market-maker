@@ -32,14 +32,14 @@ If the market price has drifted way higher (_"way higher"_ as directed by the co
 ## Running the market maker bot: System requirements
 
 Minimum System Requirements:
-Memory: 500 MB
-CPU: 0.5vCPU (2.25 GHz CPU Base Frequency)
-Reliable and fast internet connection
+- Memory: 500 MB
+- CPU: 0.5vCPU (2.25 GHz CPU Base Frequency)
+- Reliable and fast internet connection
 
 Recommended System Requirements:
-Memory: 1GB
-CPU: 1vCPU (2.25 GHz CPU Base Frequency)
-Reliable and blasingly fast internet connection
+- Memory: 1GB
+- CPU: 1vCPU (2.25 GHz CPU Base Frequency)
+- Reliable and blasingly fast internet connection
 
 The Market Maker Bot does not require much resources. If you choose to use the Kupo provider and run the Cardano Node yourself, that needs much more resources, especially on the Cardano Mainnet.
 

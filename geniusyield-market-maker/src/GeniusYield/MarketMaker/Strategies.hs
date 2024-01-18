@@ -9,7 +9,8 @@ import qualified Data.Map.Strict                           as M
 import           Data.Maybe                                (fromJust, mapMaybe)
 import           Data.Ratio                                (denominator,
                                                             numerator, (%))
-import           Data.Semigroup                            (Semigroup (stimes))
+import           Data.Semigroup                            (Semigroup (stimes),
+                                                            mtimesDefault)
 import           Deriving.Aeson
 import           GeniusYield.AnnSet.Internal               (orderInfo,
                                                             toAscList)
@@ -204,7 +205,7 @@ fixedSpreadVsMarketPriceStrategy
                 neededAtleast = stimes numNewBuyOrders neededAtleastPerOrder
                 valueSufficient = totalValueOnUtxos `valueGreaterOrEqual` neededAtleast
                 actualNumNewBuyOrders = if valueSufficient then numNewBuyOrders else fromIntegral $ subtractTillZero totalValueOnUtxos neededAtleastPerOrder 0
-                totalValueOnUtxosAfterBuyOrds = totalValueOnUtxos `valueMinus` stimes actualNumNewBuyOrders neededAtleastPerOrder
+                totalValueOnUtxosAfterBuyOrds = totalValueOnUtxos `valueMinus` mtimesDefault actualNumNewBuyOrders neededAtleastPerOrder
 
             unless valueSufficient $ logWarn providers $ printf "Bot has to place %d buy order(s), but lack funds, total balance (excluding collateral) should be at least: %s but available funds are: %s. Only placing %d buy order(s)." numNewBuyOrders (show neededAtleast) (show totalValueOnUtxos) actualNumNewBuyOrders
 

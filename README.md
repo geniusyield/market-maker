@@ -104,6 +104,9 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
 
 ### Configuration
 
+The Market Maker Bot configuration had been explained in detail in the recent workshop, that is available on demand on YouTube:
+ - [How to Create Your Own Market Maker Bot | Workshop with Dr. Lars Brünjes and the Genius Yield Team](https://www.youtube.com/watch?v=OCXVMmOB108&t=2391s)
+
 > [!NOTE]
 > See [`sample-preprod-maker-bot-config-gens.json`](./sample-preprod-maker-bot-config-gens.json) and [`sample-mainnet-maker-bot-config-gens.json`](./sample-mainnet-maker-bot-config-gens.json) for sample Preprod and Mainnet market maker bot configuration respectively.
 

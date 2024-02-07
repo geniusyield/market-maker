@@ -113,7 +113,7 @@ filterOwnOrders
   -> [PartialOrderInfo]
   -> M.Map User [(MMTokenPair, PartialOrderInfo)]
 filterOwnOrders stps users allOrders =
-  let usersPkh = pkhUser <$> users
+  let usersPkh = toPubKeyHash . pkhUser <$> users
       ourPOIs = filter (flip elem usersPkh . poiOwnerKey) allOrders
       relevantTokensPOIs = mapMaybe (filterTokenPair stps) ourPOIs
       finalMap = foldl' (\acc (stp, poi) -> M.unionWith (++) acc (M.singleton (lookupUser poi) [(stp, poi)])) mempty relevantTokensPOIs
@@ -132,7 +132,7 @@ filterOwnOrders stps users allOrders =
   lookupUser :: PartialOrderInfo -> User
   lookupUser PartialOrderInfo {poiOwnerKey} =
     fromJust
-      $ find ((==) poiOwnerKey . pkhUser) users
+      $ find ((==) poiOwnerKey . toPubKeyHash . pkhUser) users
 
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
@@ -338,7 +338,8 @@ fixedSpreadVsMarketPriceStrategy
         [ "Price for:",
           prettyAc $ mmtAc sToken,
           "is",
-          show (fromRational (getPrice price) :: Double)
+          show (fromRational (getPrice price) :: Double),
+          "lovelaces"
         ]
 
     prettyAc :: GYAssetClass -> String

@@ -11,7 +11,7 @@ import           GeniusYield.Api.Dex.PartialOrder   (PartialOrderInfo (poiOwnerK
                                                      cancelMultiplePartialOrders,
                                                      partialOrders,
                                                      placePartialOrder)
-import           GeniusYield.Imports                (printf)
+import           GeniusYield.Imports                (printf, (&))
 import           GeniusYield.MarketMaker.Constants  (awaitTxParams, logNS)
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
@@ -51,19 +51,19 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
           runGYTxMonadNode netId providers [userAddr] userAddr (uColl mbUser)
             $ runReaderT (cancelMultiplePartialOrders (dexPORefs di) batch) di
         let signedTx =
-              signGYTxBody txBody [uSKey mbUser]
+              signGYTxBody' txBody [uSKeyToSomeSigningKey mbUser]
         tid ← gySubmitTx providers signedTx
         gyLogInfo providers logNS $ "Submitted a cancel order batch: " ++ show tid
         gyLogInfo providers logNS "---------- Done for the block! -----------"
         gyAwaitTxConfirmed providers awaitTxParams tid
         go rest
   partialOrderInfos <- runGYTxQueryMonadNode netId providers $ runReaderT (partialOrders (dexPORefs di)) di
-  let userPkh = pkhUser mbUser
+  let userPkh = pkhUser mbUser & toPubKeyHash
       userPOIs = filter (\o -> poiOwnerKey o == userPkh) $ M.elems partialOrderInfos
   go userPOIs
 
 buildAndSubmitActions :: User -> GYProviders -> GYNetworkId -> UserActions -> DEXInfo -> IO ()
-buildAndSubmitActions user@User {uSKey, uColl, uStakeAddress} providers netId ua di = flip catches handlers $ do
+buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip catches handlers $ do
   let userAddr = addrUser netId user
       placeActions = uaPlaces ua
       cancelActions = uaCancels ua
@@ -86,7 +86,7 @@ buildAndSubmitActions user@User {uSKey, uColl, uStakeAddress} providers netId ua
           poaPrice
           Nothing
           Nothing
-          (stakeAddressToCredential . stakeAddressFromBech32 <$> uStakeAddress)
+          uStakeCred
     buildCommon txBody
  where
   logWarn = gyLogWarning providers logNS
@@ -108,7 +108,7 @@ buildAndSubmitActions user@User {uSKey, uColl, uStakeAddress} providers netId ua
 
   buildCommon txBody = do
     logInfo $ "Successfully built body for above action, tx id: " <> show (txBodyTxId txBody)
-    let tx = signGYTxBody txBody [uSKey]
+    let tx = signGYTxBody' txBody [uSKeyToSomeSigningKey user]
     tid ← gySubmitTx providers tx
     let numConfirms = confirmations awaitTxParams
     logInfo $ printf "Successfully submitted above tx, now waiting for %d confirmation(s)" numConfirms

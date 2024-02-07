@@ -1,6 +1,7 @@
 {
   "coreProvider": {
-    "maestroToken": "<<MAESTRO_TOKEN>>"
+    "maestroToken": "<<MAESTRO_TOKEN>>",
+    "turboSubmit": false
   },
   "networkId": "<<CARDANO_NETWORK>>",
   "logging": [

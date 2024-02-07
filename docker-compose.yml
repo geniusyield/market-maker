@@ -10,7 +10,8 @@ services:
       PROVIDER_CONFIG: |
          {
            "coreProvider": {
-             "maestroToken": "${MAESTRO_API_KEY}"
+             "maestroToken": "${MAESTRO_API_KEY}",
+             "turboSubmit": false
            },
            "networkId": "${NETWORK:-mainnet}",
            "logging": [

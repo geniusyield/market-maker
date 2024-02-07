@@ -159,9 +159,47 @@ The Market Maker Bot configuration had been explained in detail in the recent wo
 }
 ```
 * `mbc_user` describes bot's wallet.
-  * `ur_s_key_path` is the path to signing key file.
-  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
   * `ur_stake_address` (optional) is the bech32 stake address (`stake_test1...` for testnet and `stake1...` for mainnet). If specified, bot would place orders at the mangled address so that ADA in those orders (both as an offer or as received payment) would be staked. Note that if an order undergoes partial fill, received payment is in the generated order UTxO and is received by the author of order only when order is completely filled or is cancelled.
+  * `ur_s_key_path` (optional) is the path to payment signing key file (normal or extended). Note that we compute address of the bot (where funds should be provided) using payment key hash from this key and stake key hash from `ur_stake_address` (if provided).
+  * `ur_mnemonic` (optional) is the mnemonic seed phrase to load the wallet. Either one of `ur_s_key_path` or `ur_mnemonic` must be provided. It's sample value is as follows:
+    ```json
+    "ur_mnemonic": {
+      "mnemonic": [
+        "health",
+        "unable",
+        "dog",
+        "lend",
+        "artefact",
+        "arctic",
+        "dinner",
+        "energy",
+        "silent",
+        "wealth",
+        "shock",
+        "safe",
+        "glad",
+        "mail",
+        "gas",
+        "flag",
+        "beauty",
+        "penalty",
+        "mixed",
+        "garbage",
+        "erupt",
+        "wonder",
+        "magnet",
+        "around"
+      ],
+      "acc_ix": 0,
+      "addr_ix": 0
+    }
+    ```
+    Specifying `acc_ix` and `addr_ix` is optional and if not provided, default value of zero is used. `acc_ix` specifies account index and `addr_ix` is used to specify address index to derive for payment key. Explicitly, such a key would have payment derivation hierarchy as `1852H/1815H/acc_ixH/0/addr_ix` and stake derivation hierarchy as `1852H/1815H/acc_ixH/2/0`[^fun]. In case you don't know what account index and address index mean in this context, you are likely well off omitting these fields. Note that in case `ur_stake_address` is also provided then it is instead used to determine for stake credential component of the bot's address instead of stake key hash obtained from above stake key derivation. Payment credential of bot's address is always obtained from above payment key derivation.
+
+> [!TIP]
+> Sample mnemonic provided above is a valid one and can be used to toy around with configuration to understand implications better.
+
+  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
 * Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is. See sample files corresponding to the network to know for these values.
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
 * `mbc_price_config` gives the configuration on how to get market price using https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc Maestro endpoint, for a token.
@@ -242,6 +280,7 @@ Order cancellation is slightly complex.
 Bot repeatedly logs for "equity" in terms of ADA where ADA equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ADA and 500 GENS and if price of 1 GENS is 2 ADA, then equity of wallet would be 1500 ADA.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).
+[^fun]: Fun fact: Ada Lovelace lived from 1815 to 1852 which corresponds to numbers (namely _coin type_ & _purpose_) given in the hierarchy path.
 
 ## Yield Accelerator Rewards
 

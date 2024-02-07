@@ -196,8 +196,8 @@ The Market Maker Bot configuration had been explained in detail in the recent wo
     ```
     Specifying `acc_ix` and `addr_ix` is optional and if not provided default value of zero is used. `acc_ix` specifies account index and `addr_ix` is used to specify address index to derive for payment key. Explicitly, such a key would have payment derivation hierarchy as `1852H/1815H/acc_ixH/0/addr_ix` and stake derivation hierarchy as `1852H/1815H/acc_ixH/2/0`[^fun]. In case you don't know what account index and address index mean in this context, you are likely well off omitting these fields. Note that in case `ur_stake_address` is also provided then it is instead used to determine for stake credential component of the bot's address instead of stake key hash obtained from above stake key derivation. Payment credential of bot's address is always obtained from above payment key derivation.
 
-    > [!TIP]
-    > Sample mnemonic provided above is a valid one and can be used to toy around with configuration to understand implications better.
+> [!TIP]
+> Sample mnemonic provided above is a valid one and can be used to toy around with configuration to understand implications better.
 
   * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
 * Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is. See sample files corresponding to the network to know for these values.

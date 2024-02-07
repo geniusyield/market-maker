@@ -104,6 +104,9 @@ See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-
 
 ### Configuration
 
+The Market Maker Bot configuration had been explained in detail in the recent workshop, that is available on demand on YouTube:
+ - [How to Create Your Own Market Maker Bot | Workshop with Dr. Lars Brünjes and the Genius Yield Team](https://www.youtube.com/watch?v=OCXVMmOB108&t=2391s)
+
 > [!NOTE]
 > See [`sample-preprod-maker-bot-config-gens.json`](./sample-preprod-maker-bot-config-gens.json) and [`sample-mainnet-maker-bot-config-gens.json`](./sample-mainnet-maker-bot-config-gens.json) for sample Preprod and Mainnet market maker bot configuration respectively.
 
@@ -278,3 +281,20 @@ Bot repeatedly logs for "equity" in terms of ADA where ADA equivalent of commodi
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).
 [^fun]: Fun fact: Ada Lovelace lived from 1815 to 1852 which corresponds to numbers (namely _coin type_ & _purpose_) given in the hierarchy path.
+
+## Yield Accelerator Rewards
+
+Market Maker Bots place orders and therefore participate in the GeniusYield Yield Accelerator Program and can accumulate rewards.
+
+Traders wishing to check and claim their rewards can easily do so in the [GeniusYield UI](https://app.geniusyield.co/earn),
+but unfortunately, at the moment, the UI only works for users who connect their wallets to the UI and are identified by
+the wallet stake key hash.
+
+If a bot operator uses a wallet stake key hash for the bot, the operator can use the UI to check and claim bot rewards.
+
+If, on the other hand, the bot just uses a simple payment signing key and an associated address without staking component,
+the UI cannot be used to check and claim rewards. In order to allow bot operators to check and claim rewards in this case,
+we are providing two simple bash scripts, 
+which can be found in the [SOR repository](https://github.com/geniusyield/smart-order-router?tab=readme-ov-file#yield-accelerator-rewards).
+Both scripts require the `cardano-cli` to be installed and available in the `PATH`, and in order to claim,
+you additionally need a connection to a running Cardano node.

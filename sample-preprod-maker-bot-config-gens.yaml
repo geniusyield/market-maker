@@ -1,18 +1,65 @@
-# Define user.
+# Sample bot configuration for Pre-production testnet.
+# Please see README file in project's root for thorough explanation of below fields.
+
+# Wallet configuration.
 mbc_user:
+  # Either load wallet from signing key generated using `cardano-cli` (normal or extended).
   ur_s_key_path: path-to-skey
+  # Or load the wallet from mnemonic seed phrase.
+  ur_mnemonic:
+    mnemonic:
+      - health
+      - unable
+      - dog
+      - lend
+      - artefact
+      - arctic
+      - dinner
+      - energy
+      - silent
+      - wealth
+      - shock
+      - safe
+      - glad
+      - mail
+      - gas
+      - flag
+      - beauty
+      - penalty
+      - mixed
+      - garbage
+      - erupt
+      - wonder
+      - magnet
+      - around
+    # Account index.
+    acc_ix: 0
+    # Payment address index.
+    addr_ix: 0
+  # Reserved collateral UTxO.
   ur_coll: tx-id#tx-ix
+  # Stake credential to generate for bot's address and to place orders at a mangled address.
   ur_stake_address: bech32-encoded-stake-address
-# 
+# Delay in microseconds after which strategy is reran, below example value means 2 minutes (120 seconds).
 mbc_delay: 120000000
+# Price provider configuration.
 mbc_price_config:
+  # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
   pc_api_key: <<MAESTRO_TOKEN>>
+  # Resolution parameter of above API call. Note that we take the closing price of latest resolution window.
   pc_resolution: 15m
   pc_network_id: mainnet
-  pc_dex: genius-yield
+  # Supported values of `pc_dex` are `minswap` and `genius-yield`.
+  # So put either
+  # pc_dex: minswap
+  # or
+  # pc_dex: genius-yield
+  pc_dex: put either minswap or genius-yield
+  # Following field (`pc_override`) is not to be provided for Mainnet. It is their when testing market maker bot with dummy tokens.
   pc_override:
     mpo_pair: ADA-GENS
     mpo_commodity_is_first: false
+# Please see description following this sample for details regarding `mbc_strategy_config` field.
 mbc_strategy_config:
   sc_spread:
     numerator: 1
@@ -26,10 +73,14 @@ mbc_strategy_config:
     tv_buy_vol_threshold: 20000000000
   sc_price_check_product: 9
   sc_cancel_threshold_product: 4
+# Token details.
 mbc_token:
+  # Asset class represented as concatenation of currency symbol and asset name with dot separator.
+  # Below sample is of `tGENS` test token.
   ac: c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53
+  # Registered decimal places for the token. As an examples, for `ADA` it is 6 and for `SNEK` it is 0.
   precision: 6
-# -------- Preprod boiler plate -------
+# Boiler plate for Pre-production testnet.
 mbc_fp_nft_policy: compiled-scripts/minting-policy
 mbc_fp_order_validator: compiled-scripts/partial-order
 mbc_po_config_addr: addr_test1wrgvy8fermjrruaf7fnndtmpuw4xx4cnvfqjp5zqu8kscfcvh32qk

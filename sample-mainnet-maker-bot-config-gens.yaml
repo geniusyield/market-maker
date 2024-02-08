@@ -1,17 +1,61 @@
 # Sample bot configuration for Mainnet.
+# Please see README file in project's root for thorough explanation of below fields.
 
+# Wallet configuration.
 mbc_user:
+  # Either load wallet from signing key generated using `cardano-cli` (normal or extended).
   ur_s_key_path: path-to-skey
+  # Or load the wallet from mnemonic seed phrase.
+  ur_mnemonic:
+    mnemonic:
+      - health
+      - unable
+      - dog
+      - lend
+      - artefact
+      - arctic
+      - dinner
+      - energy
+      - silent
+      - wealth
+      - shock
+      - safe
+      - glad
+      - mail
+      - gas
+      - flag
+      - beauty
+      - penalty
+      - mixed
+      - garbage
+      - erupt
+      - wonder
+      - magnet
+      - around
+    # Account index.
+    acc_ix: 0
+    # Payment address index.
+    addr_ix: 0
+  # Reserved collateral UTxO.
   ur_coll: tx-id#tx-ix
+  # Stake credential to generate for bot's address and to place orders at a mangled address.
   ur_stake_address: bech32-encoded-stake-address
+# Delay in microseconds after which strategy is reran, below example value means 2 minutes (120 seconds).
 mbc_delay: 120000000
+# Price provider configuration.
 mbc_price_config:
+  # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
   pc_api_key: <<MAESTRO_TOKEN>>
+  # Resolution parameter of above API call. Note that we take the closing price of latest resolution window.
   pc_resolution: 15m
   pc_network_id: mainnet
-  # `pc_dex` supports either `minswap` or `genius-yield`.
-  pc_dex: minswap
-# Please see `README.md` for details regarding `mbc_strategy_config` field.
+  # Supported values of `pc_dex` are `minswap` and `genius-yield`.
+  # So put either
+  # pc_dex: minswap
+  # or
+  # pc_dex: genius-yield
+  pc_dex: put either minswap or genius-yield
+# Please see description following this sample for details regarding `mbc_strategy_config` field.
 mbc_strategy_config:
   sc_spread:
     numerator: 1
@@ -28,6 +72,7 @@ mbc_strategy_config:
 # Token details.
 mbc_token:
   # Asset class represented as concatenation of currency symbol and asset name with dot separator.
+  # Below sample is of `GENS` token.
   ac: dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53
   # Registered decimal places for the token. As an examples, for `ADA` it is 6 and for `SNEK` it is 0.
   precision: 6

@@ -98,7 +98,7 @@ First, you need to setup the necessary tooling to work with [haskell.nix](https:
 > [!NOTE]
 > Nix is not necessary if your environment already has the right set of dependencies. One may look at the [CI file](https://github.com/geniusyield/atlas/blob/main/.github/workflows/haskell.yml) for our transaction building tool, which current project also relies on, to see dependencies used.
 
-Then the bot can be ran with following command: `cabal run geniusyield-market-maker-exe -- Run my-atlas-config.json my-maker-bot-config.json` where `my-atlas-config.json` is the configuration for [Atlas](https://github.com/geniusyield/atlas) and `my-maker-bot-config.json` is the configuration of our market maker bot.
+Then the bot can be ran with following command: `cabal run geniusyield-market-maker-exe -- Run my-atlas-config.json my-maker-bot-config.yaml` where `my-atlas-config.json` is the configuration for [Atlas](https://github.com/geniusyield/atlas) and `my-maker-bot-config.yaml` is the configuration of our market maker bot.
 
 See [`atlas-config-maestro.json`](./atlas-config-maestro.json) & [`atlas-config-kupo.json`](./atlas-config-kupo.json) as an example of Atlas configuration using [Maestro](https://www.gomaestro.org/) provider & local node with [Kupo](https://github.com/CardanoSolutions/kupo) respectively.
 
@@ -108,67 +108,27 @@ The Market Maker Bot configuration had been explained in detail in the recent wo
  - [How to Create Your Own Market Maker Bot | Workshop with Dr. Lars Brünjes and the Genius Yield Team](https://www.youtube.com/watch?v=OCXVMmOB108&t=2391s)
 
 > [!NOTE]
-> See [`sample-preprod-maker-bot-config-gens.json`](./sample-preprod-maker-bot-config-gens.json) and [`sample-mainnet-maker-bot-config-gens.json`](./sample-mainnet-maker-bot-config-gens.json) for sample Preprod and Mainnet market maker bot configuration respectively.
+> See [`sample-preprod-maker-bot-config-gens.yaml`](./sample-preprod-maker-bot-config-gens.yaml) and [`sample-mainnet-maker-bot-config-gens.yaml`](./sample-mainnet-maker-bot-config-gens.yaml) for sample Preprod and Mainnet market maker bot configuration respectively. Note that both `json` and `yaml` formats are supported.
 
-```json
-{
-  "mbc_user": {
-    "ur_s_key_path": "path-to-skey",
-    "ur_coll": "tx-id#tx-ix",
-    "ur_stake_address": "bech32-encoded-stake-address"
-  },
-  "mbc_fp_nft_policy": "compiled-scripts/minting-policy",
-  "mbc_fp_order_validator": "compiled-scripts/partial-order",
-  "mbc_po_config_addr": "addr_test1wrgvy8fermjrruaf7fnndtmpuw4xx4cnvfqjp5zqu8kscfcvh32qk",
-  "mbc_po_refs": {
-    "por_ref_nft": "fae686ea8f21d567841d703dea4d4221c2af071a6f2b433ff07c0af2.8309f9861928a55d37e84f6594b878941edce5e351f7904c2c63b559bde45c5c",
-    "por_val_ref": "be6f8dc16d4e8d5aad566ff6b5ffefdda574817a60d503e2a0ea95f773175050#2",
-    "por_mint_ref": "be6f8dc16d4e8d5aad566ff6b5ffefdda574817a60d503e2a0ea95f773175050#1"
-  },
-  "mbc_delay": 120000000,
-  "mbc_price_config": {
-    "pc_api_key": "<<MAESTRO_TOKEN>>",
-    "pc_resolution": "15m",
-    "pc_network_id": "mainnet",
-    "pc_dex": "genius-yield",
-    "pc_override": {
-      "mpo_pair": "ADA-GENS",
-      "mpo_commodity_is_first": false
-    }
-  },
-  "mbc_strategy_config": {
-    "sc_spread": {
-      "numerator": 1,
-      "denominator": 100
-    },
-    "sc_token_volume": {
-      "tv_sell_min_vol": 1000000000,
-      "tv_buy_min_vol": 2000000000,
-      "tv_sell_budget": 3500000000,
-      "tv_buy_budget": 6600000000,
-      "tv_sell_vol_threshold": 10000000000,
-      "tv_buy_vol_threshold": 20000000000
-    },
-    "sc_price_check_product": 9,
-    "sc_cancel_threshold_product": 4
-  },
-  "mbc_token": {
-    "ac": "c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53",
-    "precision": 6
-  }
-}
-```
+https://github.com/geniusyield/market-maker/blob/main/sample-preprod-maker-bot-config-gens.yaml
+
 * `mbc_user` describes bot's wallet.
-  * `ur_s_key_path` is the path to signing key file.
-  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
   * `ur_stake_address` (optional) is the bech32 stake address (`stake_test1...` for testnet and `stake1...` for mainnet). If specified, bot would place orders at the mangled address so that ADA in those orders (both as an offer or as received payment) would be staked. Note that if an order undergoes partial fill, received payment is in the generated order UTxO and is received by the author of order only when order is completely filled or is cancelled.
+  * `ur_s_key_path` (optional) is the path to payment signing key file (normal or extended). Note that we compute address of the bot (where funds should be provided) using payment key hash from this key and stake key hash from `ur_stake_address` (if provided).
+  * `ur_mnemonic` (optional) is the mnemonic seed phrase to load the wallet. Either one of `ur_s_key_path` or `ur_mnemonic` must be provided.
+    Specifying `acc_ix` and `addr_ix` is optional and if not provided, default value of zero is used. `acc_ix` specifies account index and `addr_ix` is used to specify address index to derive for payment key. Explicitly, such a key would have payment derivation hierarchy as `1852H/1815H/acc_ixH/0/addr_ix` and stake derivation hierarchy as `1852H/1815H/acc_ixH/2/0`[^fun]. In case you don't know what account index and address index mean in this context, you are likely well off omitting these fields. Note that in case `ur_stake_address` is also provided then it is instead used to determine for stake credential component of the bot's address instead of stake key hash obtained from above stake key derivation. Payment credential of bot's address is always obtained from above payment key derivation.
+
+> [!TIP]
+> Sample mnemonic provided above is a valid one and can be used to toy around with configuration to understand implications better.
+
+  * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
 * Fields `mbc_fp_nft_policy`, `mbc_fp_order_validator`, `mbc_po_config_addr` and `mbc_po_refs` relate to DEX smart contracts and can be left as it is. See sample files corresponding to the network to know for these values.
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
 * `mbc_price_config` gives the configuration on how to get market price using https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc Maestro endpoint, for a token.
   * `pc_api_key` is the Maestro API key.
-  * `pc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc).
+  * `pc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc). We take the closing price of the latest resolution window.
   * `pc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
-  * `pc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported.
+  * `pc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported. Caution must be exercised in setting this value. We use the closing price from Maestro's OHLC endpoint and a price feed from AMM dex is less susceptible to price alterations as trades cannot happen at an arbitrary price.
   * `pc_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for a corresponding mainnet token, one can specify desired (overriding) pair in `mpo_pair` & mention whether commodity is first token of the given pair or not in `mpo_commodity_is_first` field. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
 * `mbc_strategy_config` determines parameters for strategy:
 
@@ -212,7 +172,7 @@ The final `ExitSuccess` and the `mm exited with code 0` output confirms that all
 If you would like to cancel *ALL* orders placed by your Market Maker Instance and you built it from source, you can simply run:
 
 ``` bash
-cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.json
+cabal run geniusyield-market-maker-exe -- Cancel my-atlas-config.json my-maker-bot-config.yaml
 ```
 
 The output should be similar like in the previous chapter.
@@ -242,6 +202,7 @@ Order cancellation is slightly complex.
 Bot repeatedly logs for "equity" in terms of ADA where ADA equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ADA and 500 GENS and if price of 1 GENS is 2 ADA, then equity of wallet would be 1500 ADA.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).
+[^fun]: Fun fact: Ada Lovelace lived from 1815 to 1852 which corresponds to numbers (namely _coin type_ & _purpose_) given in the hierarchy path.
 
 ## Yield Accelerator Rewards
 

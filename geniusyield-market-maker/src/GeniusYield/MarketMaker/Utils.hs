@@ -1,9 +1,11 @@
 module GeniusYield.MarketMaker.Utils where
 
+import qualified Cardano.Api                      as Api
 import qualified Data.Text                        as Text
 import           GeniusYield.Api.Dex.PartialOrder (PORefs)
-import           GeniusYield.Imports              (coerce, first)
-import           GeniusYield.MarketMaker.User     (User (..))
+import           GeniusYield.Imports              (coerce, first, (&))
+import           GeniusYield.MarketMaker.User     (Secret (getSecret),
+                                                   User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
 import           GeniusYield.Scripts              (HasPartialOrderConfigAddr (..),
                                                    HasPartialOrderNftScript (..),
@@ -14,14 +16,17 @@ import           PlutusLedgerApi.V1.Scripts       (ScriptHash)
 import           PlutusLedgerApi.V1.Value         (AssetClass)
 import           PlutusLedgerApi.V2               (Address)
 import           Ply                              (ScriptRole (..), TypedScript)
+import           Unsafe.Coerce                    (unsafeCoerce)
 
-pkhUser :: User -> GYPubKeyHash
-pkhUser = pubKeyHash . paymentVerificationKey . uSKey
+pkhUser :: User -> GYPaymentKeyHash
+pkhUser User {uSKey} = case getSecret uSKey of
+  AGYPaymentSigningKey skey -> paymentKeyHash . paymentVerificationKey $ skey
+  AGYExtendedPaymentSigningKey skey -> extendedPaymentSigningKeyToApi skey & Api.getVerificationKey & Api.verificationKeyHash & unsafeCoerce & paymentKeyHashFromApi  -- Usage of `unsafeCoerce` here as Atlas's key hash types need an overhaul since it is not powerful enough to cater for all the relevant cases.
 
 addrUser :: GYNetworkId -> User -> GYAddress
 addrUser netId user = addressFromCredential netId
   (GYPaymentCredentialByKey $ pkhUser user)
-  (stakeAddressToCredential . stakeAddressFromBech32 <$> uStakeAddress user)
+  (uStakeCred user)
 
 -- | Convert Maestro's asset class to our GY type.
 assetClassFromMaestro :: (Maestro.TokenName, Maestro.PolicyId) → Either SomeDeserializeError GYAssetClass

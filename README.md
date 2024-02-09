@@ -128,8 +128,12 @@ https://github.com/geniusyield/market-maker/blob/eeb410f3936e6610797e6402c4dd2fd
   * `pc_api_key` is the Maestro API key.
   * `pc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc). We take the closing price of the latest resolution window.
   * `pc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
-  * `pc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported. Caution must be exercised in setting this value. We use the closing price from Maestro's OHLC endpoint and a price feed from AMM dex is less susceptible to price alterations as trades cannot happen at an arbitrary price.
   * `pc_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for a corresponding mainnet token, one can specify desired (overriding) pair in `mpo_pair` & mention whether commodity is first token of the given pair or not in `mpo_commodity_is_first` field. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
+  * `pc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported. Caution must be exercised in setting this value. We use the closing price from Maestro's OHLC endpoint and a price feed from AMM dex is less susceptible to price alterations as trades cannot happen at an arbitrary price.
+
+> [!CAUTION]
+> Please make sure to use `minswap` for the `pc_dex` configuration setting. Using an AMM based DEX as price oracle helps to combat malicious price manipulation.
+
 * `mbc_strategy_config` determines parameters for strategy:
 
   * `sc_spread` - Ratio representing `δ` as described before.

@@ -131,8 +131,8 @@ https://github.com/geniusyield/market-maker/blob/main/sample-preprod-maker-bot-c
   * `pc_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for a corresponding mainnet token, one can specify desired (overriding) pair in `mpo_pair` & mention whether commodity is first token of the given pair or not in `mpo_commodity_is_first` field. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
   * `pc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported. Caution must be exercised in setting this value. We use the closing price from Maestro's OHLC endpoint and a price feed from AMM dex is less susceptible to price alterations as trades cannot happen at an arbitrary price.
 
-  > [!CAUTION]
-  > Please make sure to use `minswap` for the `pc_dex` configuration setting. Using an AMM based DEX as price oracle helps to combat malicious price manipulation.
+> [!CAUTION]
+> Please make sure to use `minswap` for the `pc_dex` configuration setting. Using an AMM based DEX as price oracle helps to combat malicious price manipulation.
 
 * `mbc_strategy_config` determines parameters for strategy:
 

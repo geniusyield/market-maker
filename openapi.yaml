@@ -10,53 +10,68 @@ components:
       in: header
       name: X-API-Key
   schemas:
-    Config:
-      type: object
-      properties: { network: { type: string} }
-      example:
-       { network: "mainnet" }
     Settings:
-      type: array
-      items: {$ref: '#/components/schemas/Config'}
-    Ticker:
       type: object
-      required: [ticker_id, base_currency, target_currency, pool_id, last_price, base_volume, target_volume, liquidity_in_usd]
+      properties: {
+          network: { type: string },
+          version: { type: string },
+          revision: { type: string },
+          backend: { type: string }
+        }
+      example:
+       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb" }
+    Fees:
+      type: object
+      properties: {
+          place: { type: string },
+          cancel: { type: string },
+          maker: { type: string },
+          taker: { type: string }
+        }
+      example:
+       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb" }
+    Market:
+      type: object
+      required: [market_id, base_currency, target_currency, pool_id, last_price, base_volume, target_volume, liquidity_in_usd]
       properties:
-        ticker_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
-        base_currency: { type: string, description: "Ticker of a the base cryptoasset, eg. GENS" }
-        target_currency: { type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
-        pool_id: { type: string, description: "Unique ID of the trading pair" }
-        last_price: { type: number, format: double, description: "Last transacted price of base currency based on given target currency (unit in base or target) eg. X = ?, 1 base = X target, X base = 1 target" }
-        base_volume: { type: number, format: double, description: "24 hour trading volume for the pair (unit in base)" }
-        target_volume: { type: number, description: "24 hour trading volume for the pair (unit in target)" }
-        liquidity_in_usd: { type: string, description: "Trading pair liquidity in USD" }
-        bid: { type: number, format: double, description: "Current highest bid price" }
-        ask: { type: number, format: double, description: "Current lowest ask price" }
-        high: { type: number, format: double, description: "Rolling 24-hours highest transaction price" }
-        low: { type: number, format: double, description: "Rolling 24-hours lowest transaction price" }
-    Tickers:
+        market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
+        base: { type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
+        target: { type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
+        # Coin Gecko API requirements spec (out of scope for now):
+        # pool_id: { type: string, description: "Unique ID of the trading pair" }
+        # last_price: { type: number, format: double, description: "Last transacted price of base currency based on given target currency (unit in base or target) eg. X = ?, 1 base = X target, X base = 1 target" }
+        # base_volume: { type: number, format: double, description: "24 hour trading volume for the pair (unit in base)" }
+        # target_volume: { type: number, description: "24 hour trading volume for the pair (unit in target)" }
+        # liquidity_in_usd: { type: string, description: "Trading pair liquidity in USD" }
+        # bid: { type: number, format: double, description: "Current highest bid price" }
+        # ask: { type: number, format: double, description: "Current lowest ask price" }
+        # high: { type: number, format: double, description: "Rolling 24-hours highest transaction price" }
+        # low: { type: number, format: double, description: "Rolling 24-hours lowest transaction price" }
+      example:
+       { market_id: "ADA/GENS", base_currency: "ADA", target_currency: "GENS" }
+    Markets:
       type: array
-      items: {$ref: '#/components/schemas/Ticker'}
+      items: {$ref: '#/components/schemas/Market'}
     Order:
       type: object
       properties:
-        ticker_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
-        timestamp: { type: string, description: "" }
-        bids: { type: array, items: { type: array, items: { type: number, minItems: 2, maxItems: 2, description: "An array containing 2 elements. The offer price and quantity for the bid order" }}}
-        asks: { type: array, items: { type: array, items: { type: number, minItems: 2, maxItems: 2, description: "An array containing 2 elements. The ask price and quantity for the ask order" }},}
+        market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
+        timestamp: { type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
+        base_asset: { type: number, format: double, description: "Transaction amount in base pair volume." }
+        target_asset: { type: number, format: double, description: "Transaction amount in base pair volume." }
       example:
         {
-          "ticker_id" : "ADA/GENS",
-          "timestamp" : "1700050000",
-          "bids" : [[ "49.8", "0.50000000" ], [ "49.9", "6.40000000" ]],
-          "asks" : [[ "50.1", "9.20000000" ], [ "50.2", "7.90000000" ]]
+          "market_id" : "ADA/GENS",
+          "timestamp" : "1985-04-12T23:00:00.00Z",
+          "base_asset" : 49.9,
+          "target_asset" : 50.1
         }
     Orders:
       type: array
       items: {$ref: '#/components/schemas/Order'}
     Trade:
       type: object
-      required: [ticker_id, base_currency, target_currency, pool_id, last_price, base_volume, target_volume, liquidity_in_usd]
+      required: [market_id, base_currency, target_currency, pool_id, last_price, base_volume, target_volume, liquidity_in_usd]
       properties:
         trade_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
         price: { type: number, format: double, description: "Transaction price of base asset in target currency." }
@@ -65,28 +80,26 @@ components:
         trade_timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
     Trades:
-      type: object
-      properties:
-        buy : { type: array, items: {$ref: '#/components/schemas/Trade' }}
-        sell : { type: array, items: {$ref: '#/components/schemas/Trade'}}
+      type: array
+      items: {$ref: '#/components/schemas/Trade'}
       example:
-        {
-          "buy": [{ "trade_id":1234567, "price":"50.1", "base_volume":"0.1", "target_volume":"1", "trade_timestamp":"1700050000", "type":"buy" }],
-          "sell": [{ "trade_id":1234567, "price":"50.1", "base_volume":"0.1", "target_volume":"1", "trade_timestamp":"1700050000", "type":"sell" }]
-        }
+        [
+         { "trade_id":1234567, "price":"50.1", "base_volume":"0.1", "target_volume":"1", "trade_timestamp":"1700050000", "type":"buy" },
+         { "trade_id":1234567, "price":"50.1", "base_volume":"0.1", "target_volume":"1", "trade_timestamp":"1700050000", "type":"sell" }
+        ]
     Price:
       type: object
       properties:
-        coin_a_close: { type: number, format: double, description: Coin A close }
-        coin_a_high: { type: number, format: double, description: Coin B high }
-        coin_a_low: { type: number, format: double, description: Coin A low }
-        coin_a_open: { type: number, format: double, description: Coin A open }
-        coin_a_volume: {type: number, format: double, description: Coin A volume }
-        coin_b_close: { type: number, format: double, description: Coin B close }
-        coin_b_high: { type: number, format: double, description: Coin A high }
-        coin_b_low: { type: number, format: double, description: Coin B low }
-        coin_b_open: { type: number, format: double, description: Coin B open}
-        coin_b_volume: { type: number, format: double, description: Coin B volume }
+        base_close: { type: number, format: double, description: Base close }
+        base_high: { type: number, format: double, description: Target high }
+        base_low: { type: number, format: double, description: Base low }
+        base_open: { type: number, format: double, description: Base open }
+        base_volume: {type: number, format: double, description: Base volume }
+        target_close: { type: number, format: double, description: Target close }
+        target_high: { type: number, format: double, description: Target high }
+        target_low: { type: number, format: double, description: Target low }
+        target_open: { type: number, format: double, description: Target open}
+        target_volume: { type: number, format: double, description: Target volume }
         count: { type: integer, description: Candlestick size }
         time_period_start: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
         time_period_end: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:15:00.00Z" }
@@ -107,13 +120,13 @@ paths:
     get:
       tags: [settings]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Settings' }}}}}
-  /tickers:
+  /markets:
     get:
       tags: [markets]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Tickers' }}}}}
-  /orderbook:
+      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Markets' }}}}}
+  /orders:
     parameters:
-     - {in: query, name: ticker_id, required: true, schema: { type: string }}
+     - {in: query, name: market_id, required: true, schema: { type: string }}
      - {in: query, name: depth, required: false, schema: { type: integer }}
     get:
       tags: [orders]
@@ -126,7 +139,7 @@ paths:
       responses: {202: {description: Deleted}}
   /historical_trades:
     parameters:
-     - {in: query, name: ticker_id, required: true, schema: { type: string }}
+     - {in: query, name: market_id, required: true, schema: { type: string }}
      - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], example: "buy" }}
      - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
      - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
@@ -135,9 +148,9 @@ paths:
     get:
       tags: [trades]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Trades' }}}}}
-  /price_history:
+  /historical_prices:
     parameters:
-     - {in: query, name: ticker_id, required: true, schema: { type: string }}
+     - {in: query, name: market_id, required: true, schema: { type: string }}
      - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], example: "30m" }}
      - {in: query, name: from, required: false, schema: { type: string, format: "date", example: "2024-12-03" }}
      - {in: query, name: to, required: false, schema: { type: string, format: "date", example: "2024-12-04" }}
@@ -147,3 +160,7 @@ paths:
     get:
       tags: [price]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}}
+  /trading_fees:
+    get:
+      tags: [fees]
+      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Fees' }}}}}

@@ -167,7 +167,7 @@ fixedSpreadVsMarketPriceStrategy
         equityInWallet = equityFromValue $ foldlUTxOs' (\acc utxo -> acc <> utxoValue utxo) mempty ownUtxos
 
         ordersToCancel =
-          -- If market price is greater than any of our sell orders or is less than any of our buy orders, we cancel all the orders.
+          -- If market price is greater than or equal to any of our sell orders or is less than or equal to any of our buy orders, we cancel all the orders.
           let mp' = getPrice mp
               priceCrosses (toOAPair -> oap, poi) =
                 case mkOrderInfo oap poi of

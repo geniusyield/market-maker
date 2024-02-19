@@ -29,6 +29,8 @@ Given a market price `M` and a variable `δ` defined as _spread_, the bot would 
 
 If the market price has drifted way higher (_"way higher"_ as directed by the configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, those sell orders would be canceled.
 
+[_Since version 0.2.0_] Also in case, market price reaches (or crosses) any of bot's orders, i.e., if market price is greater than or equal to price of any of bot's sell orders or is less than or equal to price of any of bot's buy orders, bot would cancel all the orders and would then proceed to placing new orders considering current market price.
+
 ## Running the market maker bot: System requirements
 
 Minimum System Requirements:

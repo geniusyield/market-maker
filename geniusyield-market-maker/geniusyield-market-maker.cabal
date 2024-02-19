@@ -122,6 +122,7 @@ executable geniusyield-market-maker-exe
   main-is:          Main.hs
   other-modules:
     GeniusYield.MarketMaker.Constants
+    GeniusYield.MarketMaker.Equity
     GeniusYield.MarketMaker.MakerBot
     GeniusYield.MarketMaker.MakerBotConfig
     GeniusYield.MarketMaker.Orphans
@@ -138,6 +139,7 @@ executable geniusyield-market-maker-exe
     , geniusyield-dex-api
     , geniusyield-market-maker:{datasource-providers, orderbook-annset}
     , geniusyield-orderbot-framework:common
+    , ghc-typelits-knownnat
     , maestro-sdk
     , MonadRandom
     , plutus-core

@@ -1,41 +1,55 @@
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+
 module GeniusYield.MarketMaker.Prices where
 
-import Control.Applicative ((<|>))
-import Control.Arrow (Arrow (first), (&&&))
-import Control.Exception (Exception, throwIO, try)
-import Control.Monad ((<=<))
-import Data.Coerce (coerce)
-import Data.Either (fromRight)
-import Data.Function ((&))
-import Data.List (find)
-import qualified Data.Map.Strict as M
-import Data.Maybe (fromJust)
-import Data.Text (Text, pack)
-import Deriving.Aeson
-import GeniusYield.GYConfig
-import GeniusYield.MarketMaker.Orphans ()
-import GeniusYield.MarketMaker.Utils
-import GeniusYield.OrderBot.DataSource.Providers (Connection)
-import GeniusYield.OrderBot.OrderBook.AnnSet (
-  MultiAssetOrderBook,
-  OrderBook (..),
-  Orders (..),
-  maOrderBookToList,
-  populateOrderBook,
-  volumeGTPrice,
-  volumeLTPrice,
- )
-import GeniusYield.OrderBot.Types (
-  OrderAssetPair (..),
-  OrderType (..),
-  Price (..),
-  Volume (..),
- )
-import GeniusYield.Providers.Common (silenceHeadersClientError)
-import GeniusYield.Providers.Maestro
-import GeniusYield.Types
-import Maestro.Client.V1
-import Maestro.Types.V1
+import           Control.Applicative                       ((<|>))
+import           Control.Arrow                             (Arrow (first),
+                                                            (&&&))
+import           Control.Exception                         (Exception, throwIO,
+                                                            try)
+import           Control.Monad                             ((<=<))
+import           Data.ByteString.Char8                     (unpack)
+import           Data.Coerce                               (coerce)
+import           Data.Either                               (fromRight)
+import           Data.Fixed                                (Fixed (..),
+                                                            showFixed)
+import           Data.Function                             ((&))
+import           Data.List                                 (find)
+import qualified Data.Map.Strict                           as M
+import           Data.Maybe                                (fromJust)
+import           Data.Text                                 (Text, pack)
+import           Deriving.Aeson
+import           GeniusYield.GYConfig
+import           GeniusYield.Imports                       (Proxy)
+import           GeniusYield.MarketMaker.Orphans           ()
+import           GeniusYield.MarketMaker.Utils
+import           GeniusYield.OrderBot.DataSource.Providers (Connection)
+import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
+                                                            OrderBook (..),
+                                                            Orders (..),
+                                                            maOrderBookToList,
+                                                            populateOrderBook,
+                                                            volumeGTPrice,
+                                                            volumeLTPrice)
+import           GeniusYield.OrderBot.Types                (OrderAssetPair (..),
+                                                            OrderType (..),
+                                                            Price (..),
+                                                            Volume (..))
+import           GeniusYield.Providers.Common              (silenceHeadersClientError)
+import           GeniusYield.Providers.Maestro
+import           GeniusYield.Types
+import           GHC.TypeLits                              (type (^))
+import           GHC.TypeNats                              (SomeNat (SomeNat),
+                                                            someNatVal)
+import           Maestro.Client.V1
+import           Maestro.Types.V1
+
+-- $setup
+--
+-- >>> :set -XOverloadedStrings
+-- >>> import GeniusYield.Types
+-- >>> let gensAC = "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"
+-- >>> let frenAC = "fc11a9ef431f81b837736be5f53e4da29b9469c983d07f321262ce61.4652454e"
 
 data MaestroPriceException
   = MaestroPairNotFound
@@ -44,17 +58,37 @@ data MaestroPriceException
   deriving anyclass (Exception)
 
 data MMToken = MMToken
-  { mmtAc ∷ GYAssetClass,
-    mmtPrecision ∷ Int
+  { mmtAc        ∷ GYAssetClass,
+    mmtPrecision ∷ Natural
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[StripPrefix "mmt", LowerFirst]] MMToken
 
-lovelaceSt ∷ MMToken
-lovelaceSt = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
+mmtLovelace ∷ MMToken
+mmtLovelace = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
+
+-- TODO: Need to incorporate CIP-67.
+-- | Shows the amount of token in it's display units.
+--
+-- >>> showTokenAmount mmtLovelace 1_000_000
+-- "1.000000 ADA"
+--
+-- >>> showTokenAmount (MMToken gensAC 6) 100_000_000
+-- "100.000000 \NUL\DC4\223\DLEGENS"
+--
+-- >>> showTokenAmount (MMToken frenAC 0) 1_000_000
+-- "1000000.0 FREN"
+showTokenAmount :: MMToken -> Integer -> String
+showTokenAmount MMToken {..} amt = case someNatVal mmtPrecision of
+  SomeNat (_ :: Proxy n) ->
+    let fx :: Fixed (10 ^ n) = MkFixed amt
+    in showFixed False fx <> " " <> getTokenName mmtAc
+  where
+    getTokenName GYLovelace                   = "ADA"
+    getTokenName (GYToken _ (GYTokenName bs)) = unpack bs  -- Using @unpack@ as @show@ on `GYTokenName` leads to superfluous double quotes.
 
 data MMTokenPair = MMTokenPair
-  { mmtpCurrency ∷ MMToken,
+  { mmtpCurrency  ∷ MMToken,
     mmtpCommodity ∷ MMToken
   }
   deriving stock (Eq, Ord, Show)
@@ -74,31 +108,31 @@ toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
     }
 
 data MaestroPairOverride = MaestroPairOverride
-  { mpoPair ∷ !String,
+  { mpoPair             ∷ !String,
     mpoCommodityIsFirst ∷ !Bool
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
 data PriceConfig = PriceConfig
-  { pcApiKey ∷ !(Confidential Text),
+  { pcApiKey     ∷ !(Confidential Text),
     pcResolution ∷ !Resolution,
-    pcNetworkId ∷ !GYNetworkId,
-    pcDex ∷ !Dex,
-    pcOverride ∷ !(Maybe MaestroPairOverride)
+    pcNetworkId  ∷ !GYNetworkId,
+    pcDex        ∷ !Dex,
+    pcOverride   ∷ !(Maybe MaestroPairOverride)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 
 data MaestroPP = MaestroPP
-  { mppEnv ∷ !(MaestroEnv 'V1),
+  { mppEnv        ∷ !(MaestroEnv 'V1),
     mppResolution ∷ !Resolution,
-    mppDex ∷ !Dex,
-    mppOverride ∷ !(Maybe MaestroPairOverride)
+    mppDex        ∷ !Dex,
+    mppOverride   ∷ !(Maybe MaestroPairOverride)
   }
 
 data PricesProviders = PP
-  { maestroPP ∷ !MaestroPP,
+  { maestroPP   ∷ !MaestroPP,
     orderBookPP ∷ !(Connection, DEXInfo)
   }
 
@@ -130,7 +164,7 @@ buildPP c dex PriceConfig {..} =
 -}
 data OBMarketTokenInfo = OBMarketTokenInfo
   { mtSellVol ∷ !Natural,
-    mtBuyVol ∷ !Natural
+    mtBuyVol  ∷ !Natural
   }
   deriving stock (Show)
 
@@ -160,19 +194,19 @@ getOrderBookPrices
   → Price
   → Rational
   → IO (OBMarketInfo, MultiAssetOrderBook)
-getOrderBookPrices PP {orderBookPP = (c, dex)} stps price priceCheckSpread = do
-  maOrderBook ← populateOrderBook c dex (dexPORefs dex) (map toOAPair stps)
+getOrderBookPrices PP {orderBookPP = (c, dex)} mmts price priceCheckSpread = do
+  maOrderBook ← populateOrderBook c dex (dexPORefs dex) (map toOAPair mmts)
   return (M.fromList $ map buildPrice $ maOrderBookToList maOrderBook, maOrderBook)
  where
   buildPrice ∷ (OrderAssetPair, OrderBook) → (MMTokenPair, OBMarketTokenInfo)
   buildPrice (oap, ob) =
-    let stPair = toSTPair oap
+    let mmtPair = toMMTPair oap
         sndElement = uncurry (mkOBMarketTokenInfo price priceCheckSpread) . (sellOrders &&& buyOrders) $ ob
-     in (stPair, sndElement)
+     in (mmtPair, sndElement)
 
-  toSTPair ∷ OrderAssetPair → MMTokenPair
-  toSTPair OAssetPair {currencyAsset, commodityAsset} =
-    find (\MMTokenPair {..} → mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) stps
+  toMMTPair ∷ OrderAssetPair → MMTokenPair
+  toMMTPair OAssetPair {currencyAsset, commodityAsset} =
+    find (\MMTokenPair {..} → mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) mmts
       & fromJust
 
 -- | Remove headers (if `MaestroError` contains `ClientError`).
@@ -192,7 +226,7 @@ getMaestroPrice
   ∷ PricesProviders
   → MMTokenPair
   → IO Price
-getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
+getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
   (pairName, commodityIsA) ← case mppOverride of
     -- We have to override with given details.
     Just (MaestroPairOverride {..}) → do
@@ -201,7 +235,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
     Nothing → do
       allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
 
-      let go [] = throwIO MaestroPairNotFound
+      let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
       first dexPairInfoPair <$> go allDexPairs
 
@@ -210,8 +244,8 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
   ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
 
   let info = head ohlInfo
-      curPrecision = mmtPrecision $ mmtpCurrency stp
-      comPrecision = mmtPrecision $ mmtpCommodity stp
+      curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
+      comPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
       precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
 
       price =
@@ -226,20 +260,20 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} stp = do
   isRelevantPairInfo ∷ DexPairInfo → Maybe (DexPairInfo, Bool)
   isRelevantPairInfo dpi@DexPairInfo {..} =
     ( (dpi, False)
-        <$ findMatchingSTP
+        <$ findMatchingMMTP
           (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
           (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
     )
       <|> ( (dpi, True)
-              <$ findMatchingSTP
+              <$ findMatchingMMTP
                 (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
                 (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
           )
 
-  findMatchingSTP ∷ (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
-  findMatchingSTP tokenA tokenB = fromRight Nothing $ do
+  findMatchingMMTP ∷ (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+  findMatchingMMTP tokenA tokenB = fromRight Nothing $ do
     assetClassA ← assetClassFromMaestro tokenA
     assetClassB ← assetClassFromMaestro tokenB
-    Right $ if assetClassA == mmtAc (mmtpCurrency stp) && assetClassB == mmtAc (mmtpCommodity stp) then Just stp else Nothing
+    Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
   functionLocationIdent = "getMaestroPrice"

@@ -5,7 +5,7 @@ import           Control.Monad                             (unless)
 import           Data.Foldable
 import           Data.Function                             ((&))
 import           Data.Functor                              ((<&>))
-import           Data.List                                 ((\\))
+import           Data.List                                 (nub, (\\))
 import qualified Data.Map.Strict                           as M
 import           Data.Maybe                                (fromJust, mapMaybe)
 import           Data.Ratio                                (denominator,
@@ -167,17 +167,17 @@ fixedSpreadVsMarketPriceStrategy
         equityInWallet = equityFromValue $ foldlUTxOs' (\acc utxo -> acc <> utxoValue utxo) mempty ownUtxos
 
         ordersToCancel =
-          -- If market price is greater than or equal to any of our sell orders or is less than or equal to any of our buy orders, we cancel all the orders.
           let mp' = getPrice mp
               priceCrosses (toOAPair -> oap, poi) =
                 case mkOrderInfo oap poi of
                   SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price <= mp'
                   SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price >= mp'
-              marketPriceCrossesOrders = any priceCrosses allOwnOrders
           in
-            if marketPriceCrossesOrders then allOwnOrders
-            -- Else we cancel only those orders which are "too away" from market price.
-            else ordersToBeRemoved mp cancelThreshold allOwnOrders
+            nub $
+                 -- Cancel placed orders which are crossed by market price.
+                 filter priceCrosses allOwnOrders
+              <> -- And also cancel those which are "too away" from market price.
+                 ordersToBeRemoved mp cancelThreshold allOwnOrders
         cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
 
         relevantMMTP = mkMMTokenPair mmtLovelace mmToken

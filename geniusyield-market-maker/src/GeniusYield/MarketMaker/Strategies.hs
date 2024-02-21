@@ -7,7 +7,8 @@ import           Data.Function                             ((&))
 import           Data.Functor                              ((<&>))
 import           Data.List                                 (nub, (\\))
 import qualified Data.Map.Strict                           as M
-import           Data.Maybe                                (fromJust, mapMaybe)
+import           Data.Maybe                                (fromJust, fromMaybe,
+                                                            mapMaybe)
 import           Data.Ratio                                (denominator,
                                                             numerator, (%))
 import           Data.Semigroup                            (Semigroup (stimes),
@@ -79,7 +80,8 @@ data StrategyConfig = StrategyConfig
   { scSpread                 :: !Rational,
     scPriceCheckProduct      :: !Integer,
     scCancelThresholdProduct :: !Integer,
-    scTokenVolume            :: !TokenVol
+    scTokenVolume            :: !TokenVol,
+    scCancelWindowRatio      :: !(Maybe Rational)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] StrategyConfig
@@ -139,12 +141,7 @@ filterOwnOrders mmts users allOrders =
 
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
-  StrategyConfig
-    { scSpread,
-      scPriceCheckProduct,
-      scCancelThresholdProduct,
-      scTokenVolume
-    }
+  StrategyConfig { .. }
   pp
   user
   mmToken = do
@@ -168,10 +165,11 @@ fixedSpreadVsMarketPriceStrategy
 
         ordersToCancel =
           let mp' = getPrice mp
+              scCancelWindowRatio' = fromMaybe 0 scCancelWindowRatio
               priceCrosses (toOAPair -> oap, poi) =
                 case mkOrderInfo oap poi of
-                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price <= mp'
-                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price >= mp'
+                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price * (1 - scCancelWindowRatio') <= mp'
+                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price * (1 + scCancelWindowRatio') >= mp'
           in
             nub $
                  -- Cancel placed orders which are crossed by market price.

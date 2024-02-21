@@ -29,8 +29,6 @@ Given a market price `M` and a variable `δ` defined as _spread_, the bot would 
 
 If the market price has drifted way higher (_"way higher"_ as directed by the configuration) than the price at which buy orders were placed, buy orders would be canceled. Likewise, if the price has drifted way lower than the price at which sell orders were placed, those sell orders would be canceled.
 
-[_Since version 0.2.0_] Also in case, market price reaches (or crosses) any of bot's orders, i.e., if market price is greater than or equal to price of any of bot's sell orders or is less than or equal to price of any of bot's buy orders, bot would cancel all the orders and would then proceed to placing new orders considering updated market price.
-
 ## Running the market maker bot: System requirements
 
 Minimum System Requirements:
@@ -140,6 +138,7 @@ https://github.com/geniusyield/market-maker/blob/eeb410f3936e6610797e6402c4dd2fd
 
   * `sc_spread` - Ratio representing `δ` as described before.
   * `sc_cancel_threshold_product` - If the price in buy order is less than `(1 - sc_cancel_threshold_product * δ) * M`, then it is canceled. Likewise if the price in sell order is greater than `(1 + sc_cancel_threshold_product * δ) * M` then it is canceled.
+  * _[Since version 0.2.1]_ `sc_cancel_window_ratio` (optional) - We aim to cancel those orders for which market price has "crossed" them within our configured `sc_cancel_window_ratio`. I.e., if price of created sell order is denoted by `ps` and current market price by `cp`, then we'll cancel this sell order if `ps * (1 - sc_cancel_window_ratio) <= cp`. Likewise, if price of buy order is denoted by `pb`, then it will be cancelled if `pb * (1 + sc_cancel_window_ratio) >= cp`. If value of `sc_cancel_window_ratio` is not specified, then we assume it to be zero.
   * `sc_token_volume` specifies following:
     * `tv_sell_min_vol` - Amount of commodity tokens (in lowest possible denomination) that order must at least offer.
     * `tv_buy_min_vol` - Amount of currency tokens (in lovelaces) that order must at least offer.

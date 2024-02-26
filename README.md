@@ -1,5 +1,6 @@
+
+<h1 align="center">Market Maker Bot</h1>
 <p align="center">
-  # Market maker bot
   <a href="https://github.com/geniusyield/market-maker/actions?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/geniusyield/market-maker/build.yml?style=flat-square&branch=main&label=Build" /></a>
   <a href="https://www.haskell.org/"><img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker?style=flat-square"></a>
   <a href="https://github.com/geniusyield/market-maker/commits/main"><img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" /></a>

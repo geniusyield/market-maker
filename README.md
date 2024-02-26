@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" />
   </a>
   <a href="https://github.com/geniusyield/market-maker/blob/main/LICENSE">
-    <img alt="GitHub License" src="https://img.shields.io/github/license/geniusyield/market-maker?style=flat-square" />
+    <img alt="GitHub License" src="https://img.shields.io/github/license/geniusyield/market-maker?label=License&style=flat-square" />
   </a>
   <a href="./CONTRIBUTING.md">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" />

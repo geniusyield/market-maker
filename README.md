@@ -1,8 +1,7 @@
-# Market maker bot
-
 <p align="center">
+  # Market maker bot
   <a href="https://github.com/geniusyield/market-maker/actions?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/geniusyield/market-maker/build.yml?style=flat-square&branch=main&label=Build" /></a>
-  <a href="https://www.haskell.org/"><img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker"></a>
+  <a href="https://www.haskell.org/"><img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker?style=flat-square"></a>
   <a href="https://github.com/geniusyield/market-maker/commits/main"><img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" /></a>
   <a href="https://github.com/geniusyield/market-maker/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/geniusyield/market-maker?label=License&style=flat-square" /></a>
   <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" /></a>
@@ -236,3 +235,7 @@ we are providing two simple bash scripts,
 which can be found in the [SOR repository](https://github.com/geniusyield/smart-order-router?tab=readme-ov-file#yield-accelerator-rewards).
 Both scripts require the `cardano-cli` to be installed and available in the `PATH`, and in order to claim,
 you additionally need a connection to a running Cardano node.
+
+## License
+
+[Apache-2.0](./LICENSE) © [GYELD GMBH](https://www.geniusyield.co).

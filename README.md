@@ -5,7 +5,7 @@
     <img src="https://img.shields.io/github/actions/workflow/status/geniusyield/market-maker/build.yml?style=flat-square&branch=main&label=Build" />
   </a>
   <a href="https://www.haskell.org/">
-    <img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker?label=Haskell">
+    <img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker">
   </a>
   <a href="https://github.com/geniusyield/market-maker/commits/main">
     <img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" />

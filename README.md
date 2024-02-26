@@ -1,27 +1,13 @@
 # Market maker bot
 
 <p align="center">
-  <a href="https://github.com/geniusyield/market-maker/actions?query=branch%3Amain">
-    <img src="https://img.shields.io/github/actions/workflow/status/geniusyield/market-maker/build.yml?style=flat-square&branch=main&label=Build" />
-  </a>
-  <a href="https://www.haskell.org/">
-    <img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker">
-  </a>
-  <a href="https://github.com/geniusyield/market-maker/commits/main">
-    <img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" />
-  </a>
-  <a href="https://github.com/geniusyield/market-maker/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/geniusyield/market-maker?style=flat-square&label=Licence" />
-  </a>
-  <a href="./CONTRIBUTING.md">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" />
-  </a>
-  <a href="https://twitter.com/GeniusyieldO">
-    <img src="https://img.shields.io/badge/-%40GeniusYieldO-F3F1EF?style=flat-square&logo=twitter&logoColor=1D9BF0" />
-  </a>
-  <a href="https://discord.gg/TNHf4fs626">
-    <img src="https://img.shields.io/badge/-Discord-414EEC?style=flat-square&logo=discord&logoColor=white" />
-  </a>
+  <a href="https://github.com/geniusyield/market-maker/actions?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/geniusyield/market-maker/build.yml?style=flat-square&branch=main&label=Build" /></a>
+  <a href="https://www.haskell.org/"><img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker"></a>
+  <a href="https://github.com/geniusyield/market-maker/commits/main"><img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" /></a>
+  <a href="https://github.com/geniusyield/market-maker/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/geniusyield/market-maker?label=License&style=flat-square" /></a>
+  <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" /></a>
+  <a href="https://twitter.com/GeniusyieldO"><img src="https://img.shields.io/badge/-%40GeniusYieldO-F3F1EF?style=flat-square&logo=twitter&logoColor=1D9BF0" /></a>
+  <a href="https://discord.gg/TNHf4fs626"><img src="https://img.shields.io/badge/-Discord-414EEC?style=flat-square&logo=discord&logoColor=white" /></a>
 </p>
 
 

@@ -1,7 +1,7 @@
-# Contributing to Smart Order Routers
+# Contributing to the Market Maker
 
 Welcome! We're happy to have you join our community and contribute to this project. To
-learn more about the SOR, check out the [README](./README.md) and [GY whitepaper](https://www.geniusyield.co/whitepaper.pdf?lng=en).
+learn more about the MM, check out the [README](./README.md) and [GY whitepaper](https://www.geniusyield.co/whitepaper.pdf?lng=en).
 
 ## Opening Issues
 

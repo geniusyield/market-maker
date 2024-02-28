@@ -23,16 +23,16 @@ components:
     Fees:
       type: object
       properties: {
-          place: { type: string },
-          cancel: { type: string },
-          maker: { type: string },
-          taker: { type: string }
+          flat_maker_fee: { type: string },
+          flat_taker_fee: { type: string },
+          percentage_maker_fee: { type: string },
+          percentage_taker_fee: { type: string }
         }
       example:
        { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb" }
     Market:
       type: object
-      required: [market_id, base_currency, target_currency, pool_id, last_price, base_volume, target_volume, liquidity_in_usd]
+      required: [market_id, base_asset, target_asset]
       properties:
         market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
         base_asset: { type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
@@ -57,8 +57,8 @@ components:
       properties:
         market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
         timestamp: { type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
-        base_amount: { type: number, format: double, description: "Transaction amount in base pair volume." }
-        target_amount: { type: number, format: double, description: "Transaction amount in target pair volume." }
+        base_amount: { type: string, format: double, description: "Transaction amount in base pair volume." }
+        target_amount: { type: string, format: double, description: "Transaction amount in target pair volume." }
       example:
         {
           "market_id" : "ADA/GENS",
@@ -89,16 +89,16 @@ components:
     Price:
       type: object
       properties:
-        base_close: { type: number, format: double, description: Base close }
-        base_high: { type: number, format: double, description: Target high }
-        base_low: { type: number, format: double, description: Base low }
-        base_open: { type: number, format: double, description: Base open }
-        base_volume: {type: number, format: double, description: Base volume }
-        target_close: { type: number, format: double, description: Target close }
-        target_high: { type: number, format: double, description: Target high }
-        target_low: { type: number, format: double, description: Target low }
-        target_open: { type: number, format: double, description: Target open}
-        target_volume: { type: number, format: double, description: Target volume }
+        base_close: { type: string, format: double, description: Base close }
+        base_high: { type: string, format: double, description: Target high }
+        base_low: { type: string, format: double, description: Base low }
+        base_open: { type: string, format: double, description: Base open }
+        base_volume: {type: string, format: double, description: Base volume }
+        target_close: { type: string, format: double, description: Target close }
+        target_high: { type: string, format: double, description: Target high }
+        target_low: { type: string, format: double, description: Target low }
+        target_open: { type: string, format: double, description: Target open}
+        target_volume: { type: string, format: double, description: Target volume }
         count: { type: integer, description: Candlestick size }
         time_period_start: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
         time_period_end: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:15:00.00Z" }

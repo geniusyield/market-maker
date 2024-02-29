@@ -125,18 +125,31 @@ paths:
       tags: [orders]
       description: Cancels an exisiting on-chain order.
       responses: {202: {description: Deleted}}
-  /orders/transactions:
+  /orders/tx/place:
     post:
       tags: [orders]
-      responses: {201: {description: "Created unsigned transactions for new orders"}}
-  /orders/submissions:
+      responses: {201: {description: "Created unsigned transactions to place new orders"}}
+      # result: list with the unsigned transactions
+  /orders/tx/cancel:
     post:
       tags: [orders]
-      responses: {201: {description: "Submitted signed transactions"}}
+      responses: {201: {description: "Signed the passed unsigned transactions"}}
+      # result: list with the unsigned transactions
+  /orders/tx/sign:
+    post:
+      tags: [orders]
+      responses: {201: {description: "Created unsigned transactions to cancel existing orders"}}
+      # result: list with the unsigned transactions
   /orders/tx/submit:
     post:
       tags: [orders]
-      responses: {201: {description: Created}}
+      responses: {201: {description: "Submitted the passed signed transactions and created new on-chain orders."}}
+      # result: list with the details for the transaction submittion
+  /orders/tx/sign_and_submit:
+    post:
+      tags: [orders]
+      responses: {201: {description: "Succesfully singed the passed unsigned transactions and submitted the signed transactions."}}
+      # result: list with the unsigned transactions
   /historical_trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}

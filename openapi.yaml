@@ -16,10 +16,11 @@ components:
           network: { type: string },
           version: { type: string },
           revision: { type: string },
-          backend: { type: string }
+          backend: { type: string },
+          address: { type: string }
         }
       example:
-       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb" }
+       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
     Fees:
       type: object
       properties: {
@@ -37,16 +38,6 @@ components:
         market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
         base_asset: { type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
         target_asset: { type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
-        # Coin Gecko API requirements spec (out of scope for now):
-        # pool_id: { type: string, description: "Unique ID of the trading pair" }
-        # last_price: { type: number, format: double, description: "Last transacted price of base currency based on given target currency (unit in base or target) eg. X = ?, 1 base = X target, X base = 1 target" }
-        # base_volume: { type: number, format: double, description: "24 hour trading volume for the pair (unit in base)" }
-        # target_volume: { type: number, description: "24 hour trading volume for the pair (unit in target)" }
-        # liquidity_in_usd: { type: string, description: "Trading pair liquidity in USD" }
-        # bid: { type: number, format: double, description: "Current highest bid price" }
-        # ask: { type: number, format: double, description: "Current lowest ask price" }
-        # high: { type: number, format: double, description: "Rolling 24-hours highest transaction price" }
-        # low: { type: number, format: double, description: "Rolling 24-hours lowest transaction price" }
       example:
        { market_id: "ADA/GENS", base_asset: "ADA", target_asset: "GENS" }
     Markets:
@@ -59,13 +50,8 @@ components:
         timestamp: { type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
         base_amount: { type: string, format: double, description: "Transaction amount in base pair volume." }
         target_amount: { type: string, format: double, description: "Transaction amount in target pair volume." }
-      example:
-        {
-          "market_id" : "ADA/GENS",
-          "timestamp" : "1985-04-12T23:00:00.00Z",
-          "base_amount" : 49.9,
-          "target_amount" : 50.1
-        }
+      example: 
+        { market_id : "ADA/GENS", timestamp : "1985-04-12T23:00:00.00Z", base_amount : 49.9, target_amount : 50.1 }
     Orders:
       type: array
       items: {$ref: '#/components/schemas/Order'}
@@ -126,16 +112,30 @@ paths:
   /orders:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
-     - {in: query, name: depth, required: false, schema: { type: integer }}
+     - {in: query, name: owner, required: false, schema: { type: string }}
     get:
       tags: [orders]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}}
+      responses: {200: {description: Successfully fetched orders, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}}
+    post:
+      tags: [orders]
+      description: Create new on-chain order (places an order).
+      responses: {201: {description: Created a new on-chain order (buildt, signed and submitted)}}
+    delete:
+      tags: [orders]
+      description: Cancels an exisiting on-chain order.
+      responses: {202: {description: Deleted}}
+  /orders/tx:
+    post:
+      tags: [orders]
+      responses: {201: {description: "Builds unsigned transactions"}}
+  /orders/submit:
+    post:
+      tags: [orders]
+      responses: {201: {description: "Submits a signed transaction"}}
+  /orders/tx/submit:
     post:
       tags: [orders]
       responses: {201: {description: Created}}
-    delete:
-      tags: [orders]
-      responses: {202: {description: Deleted}}
   /historical_trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
@@ -151,10 +151,11 @@ paths:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
      - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], example: "30m" }}
-     - {in: query, name: from, required: false, schema: { type: string, format: "date", example: "2024-12-03" }}
-     - {in: query, name: to, required: false, schema: { type: string, format: "date", example: "2024-12-04" }}
+     - {in: query, name: from, required: false, schema: { type: string, format: "date", example: "1996-12-19T16:39:57-08:00" }}
+     - {in: query, name: to, required: false, schema: { type: string, format: "date", example: "1996-12-19T16:39:57-08:00" }}
      - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
-     - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
+     # TODO: Add paging as soon as Maestro supports it.
+     # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
      - {in: query, name: sort, required: false, schema: { type: string, enum: [asc, desc] }}
     get:
       tags: [price]

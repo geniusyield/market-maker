@@ -115,19 +115,20 @@ paths:
      - {in: query, name: owner, required: false, schema: { type: string }}
     get:
       tags: [orders]
+      description: Fetch orders for a specific market, like GENS/ADA for example.
       responses: {200: {description: Successfully fetched orders, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}}
     post:
       tags: [orders]
       description: Create new on-chain order (places an order).
-      responses: {201: {description: Created a new on-chain order (buildt, signed and submitted)}}
+      responses: {201: {description: Created a new on-chain order.}}
     delete:
       tags: [orders]
       description: Cancels an exisiting on-chain order.
       responses: {202: {description: Deleted}}
-  /orders/tx:
+  /orders/transactions:
     post:
       tags: [orders]
-      responses: {201: {description: "Builds unsigned transactions"}}
+      responses: {201: {description: "Builds unsigned transactions for new orders"}}
   /orders/submit:
     post:
       tags: [orders]

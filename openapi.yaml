@@ -128,11 +128,11 @@ paths:
   /orders/transactions:
     post:
       tags: [orders]
-      responses: {201: {description: "Builds unsigned transactions for new orders"}}
-  /orders/submit:
+      responses: {201: {description: "Created unsigned transactions for new orders"}}
+  /orders/submissions:
     post:
       tags: [orders]
-      responses: {201: {description: "Submits a signed transaction"}}
+      responses: {201: {description: "Submitted signed transactions"}}
   /orders/tx/submit:
     post:
       tags: [orders]

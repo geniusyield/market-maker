@@ -54,24 +54,29 @@ components:
     Balances:
       type: array
       items: {$ref: '#/components/schemas/Balance'}
-    LimitOrder:
-      type: object
+    OrderBase:
       properties:
-        order_type: {type: string}
-        timestamp: { type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
-        base_asset: { type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
-        base_amount: { type: string, format: double, description: "Transaction amount in base pair volume." }
-        target_asset: { type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
-        target_amount: { type: string, format: double, description: "Transaction amount in target pair volume." }
+        order_type: {type: string, enum: [LimitOrder, MarketOrder]}
+        timestamp: {type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
+        base_asset: {type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
+        base_amount: {type: string, format: double, description: "Transaction amount in base pair volume." }
+        target_asset: {type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
+        valid_from: {type: string, format: "date", example: "1985-04-12T23:00:00.00Z"}
+        valid_until: {type: string, format: "date", example: "1985-04-12T23:15:00.00Z"}
+    LimitOrder:
+      allOf:
+       - $ref: '#/components/schemas/OrderBase'
+       - type: object
+         properties:
+           target_amount: { type: string, format: double, description: "Transaction amount in target pair volume." }
       example:
         { market_id : "ADA/GENS", timestamp : "1985-04-12T23:00:00.00Z", base_amount : 49.9, target_amount : 50.1 }
     MarketOrder:
-      type: object
-      properties:
-        timestamp: { type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
-        base_asset: { type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
-        base_amount: { type: string, format: double, description: "Transaction amount in base pair volume." }
-        target_asset: { type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
+      allOf:
+       - $ref: '#/components/schemas/OrderBase'
+       - type: object
+         properties:
+           target_amount: { type: string, format: double, description: "Transaction amount in target pair volume." }
     Order:
       oneOf:
         - $ref: '#/components/schemas/MarketOrder'

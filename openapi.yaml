@@ -197,6 +197,14 @@ paths:
     delete:
       tags: [orders]
       description: Cancels an exisiting on-chain order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
       responses: {202: {description: Canceled on-chain order.}}
   /orders/tx/build-place-order-tx:
     post:

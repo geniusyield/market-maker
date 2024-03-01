@@ -57,10 +57,16 @@ components:
     Order:
       type: object
       properties:
-        market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
         timestamp: { type: string, format: "date", example: "1985-04-12T23:00:00.00Z" }
+        base_asset: { type: string, description: "Ticker of a the base cryptoasset, eg. ADA" }
         base_amount: { type: string, format: double, description: "Transaction amount in base pair volume." }
+        target_asset: { type: string, description: "Symbol of the target cryptoasset, eg. GENS" }
         target_amount: { type: string, format: double, description: "Transaction amount in target pair volume." }
+        # TODO: Support for market orders?
+        # TODO: Pass the collateral UTxO for tx building?
+        # TODO: walletRewardAddresses?
+        # TODO: walletUnusedAddresses?
+        # TODO: walletUsedAddresses?
       example: 
         { market_id : "ADA/GENS", timestamp : "1985-04-12T23:00:00.00Z", base_amount : 49.9, target_amount : 50.1 }
     Orders:

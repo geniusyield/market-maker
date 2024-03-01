@@ -96,11 +96,15 @@ components:
     BuildPlaceOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
-        # TODO: add
+        - type: object
+          properties:
+            orders: {type: array, items: {$ref: '#/components/schemas/Order'}}
     BuildCancelOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
-        - orders : {$ref: '#/components/schemas/Order'}
+        - type: object
+          properties:
+            orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
     # Sign Tx -------------------------------------
     CancelOrderSigningRequest:
       type: object
@@ -203,7 +207,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BuildPlaceOrdersRequest'
+              $ref: '#/components/schemas/BuildPlaceOrdersTxRequest'
   /orders/tx/build-cancel-order-tx:
     post:
       tags: [orders]
@@ -213,7 +217,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BuildCancelOrdersRequest'
+              $ref: '#/components/schemas/BuildCancelOrdersTxRequest'
   /orders/tx/sign:
     post:
       tags: [orders]

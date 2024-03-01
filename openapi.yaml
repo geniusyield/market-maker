@@ -146,15 +146,15 @@ paths:
       tags: [orders]
       description: Cancels an exisiting on-chain order.
       responses: {202: {description: Deleted}}
-  /orders/tx/build-place-tx:
+  /orders/tx/build-place-order-tx:
     post:
       tags: [orders]
       responses: {201: {description: "Created unsigned transactions to place new orders"}}
       # result: list with the unsigned transactions
-  /orders/tx/build-cancel-tx:
+  /orders/tx/build-cancel-order-tx:
     post:
       tags: [orders]
-      responses: {201: {description: "Signed the passed unsigned transactions"}}
+      responses: {201: {description: "Created unsigned transactions to cancel orders"}}
       # result: list with the unsigned transactions
   /orders/tx/sign:
     post:

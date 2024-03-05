@@ -10,7 +10,7 @@ info:
     identifier: Apache-2.0
     url: https://opensource.org/license/apache-2-0
   contact:
-    name: Genius Yield Techincal Support
+    name: Genius Yield Technical Support
     url: https://www.geniusyield.co/
     email: support@geniusyield.co
 components:
@@ -47,23 +47,23 @@ components:
     Market:
       type: object
       properties:
-        market_id: { type: string, description: "Identifier of a market with concataned asset IDs with underscore delimiter to separate base and target.", example: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovalaces", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
+        market_id: { type: string, description: "Identifier of a market with concataned asset IDs with underscore delimiter to separate base and target.", example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovalace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
         base_asset_ticker: { type: string, description: "Ticker of a the base cryptoasset.", example: "ADA" }
-        base_asset_decimals: { type: string, format: numeric, example: "6" }
+        base_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
         target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         target_asset_ticker: { type: string, description: "Symbol of the target cryptoasset", example: "GENS" }
-        target_asset_decimals: { type: string, format: numeric, example: "6" }
+        target_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
       required: [market_id, base_asset, base_asset_ticker, base_asset_decimals, target_asset, target_asset_ticker, target_asset_decimals]
       example:
         {
-          market_id: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-          base_asset: "lovelaces",
+          market_id: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          base_asset: "lovelace",
           base_asset_ticker: "ADA",
-          base_asset_decimals: "6",
+          base_asset_decimals: 6
           target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
           target_asset_ticket: "GENS",
-          target_asset_decimals: "6"
+          target_asset_decimals: 6
         }
     Markets:
       type: array
@@ -73,23 +73,22 @@ components:
       properties:
         asset: { type: string, description: "Ticker of a the cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
         asset_ticker: { type: string, description: "Ticker of a the cryptoasset", example: "GENS"}
-        asset_decimals: { type: string, format: numeric, example: "6" }
-        # TODO: discuss if the amount should be indivisible unit or not?
-        amount: { type: string, format: numeric, description: "Amount of asset available", example: "123456789.123456789123456789" }
+        asset_decimals: { type: integer, format: int32, minimum: 0, example: 6}
+        amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", example: "123456789123456789123456789" }
       required: [asset, amount]
       example:
-       { asset: "GENS", amount: "4531.0341" }
+       { asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", asset_ticker: "GENS", asset_decimals: 6, amount: "4531034100" }
     Balances:
       type: array
       items: {$ref: '#/components/schemas/Balance'}
     Order:
       properties:
-        base_asset: {type: string, description: "The base cryptoasset", example: "lovelaces"  }
-        # TODO: discuss if the amount should be indivisible unit or not?
-        base_amount: {type: string, format: numeric, description: "Transaction amount in base pair volume.", example: "6000000" }
+        base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
+        base_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6}
+        base_amount: {type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units", example: "6000000" }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        # TODO: discuss if the amount should be indivisible unit or not?
-        target_amount: { type: string, format: numeric, description: "Transaction amount in target pair volume." }
+        batarget_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6}
+        target_amount: { type: string, format: integer, description: "Transaction amount in target pair volume  in indivisible units." }
         type: { type: string, enum: ["buy", "sell"], example: "buy" }
         valid_from: {type: string, format: date, example: 1985-04-12T23:00:00.00Z }
         valid_until: {type: string, format: date, example: 1985-04-12T23:15:00.00Z }
@@ -142,10 +141,12 @@ components:
       type: object
       properties:
         timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
-        base_asset: {type: string, description: "The base cryptoasset", example: "lovelaces"  }
-        base_amount: { type: number, format: double, description: "Transaction amount in base pair volume." }
-        target_amount: { type: number, format: double, description: "Transaction amount in target pair volume." }
+        base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
+        base_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
+        base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisibleunits." }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        target_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
+        target_asset_amount: { type: string, format: integer, description: "Transaction amount in target pair volume in indivisible units." }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
       required: [timestamp, base_amount, target_amount, trade_timestamp, type]
     Trades:
@@ -153,22 +154,22 @@ components:
       items: {$ref: '#/components/schemas/Trade'}
       example:
         [
-         { "trade_id":1234567, "price":"50.1", "base_volume":"0.1", "target_volume":"1", "trade_timestamp":"1700050000", "type":"buy" },
-         { "trade_id":1234567, "price":"50.1", "base_volume":"0.1", "target_volume":"1", "trade_timestamp":"1700050000", "type":"sell" }
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_decimals": 6, "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_decimals": 6, "target_asset_amount" : "2000000", type: "buy"},
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_decimals": 6, "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_decimals": 6, "target_asset_amount" : "5000000", type: "sel"},
         ]
     Price:
       type: object
       properties:
-        base_close: { type: string, format: numeric, description: Base close }
-        base_high: { type: string, format: numeric, description: Target high }
-        base_low: { type: string, format: numeric, description: Base low }
-        base_open: { type: string, format: numeric, description: Base open }
-        base_volume: {type: string, format: numeric, description: Base volume }
-        target_close: { type: string, format: numeric, description: Target close }
-        target_high: { type: string, format: numeric, description: Target high }
-        target_low: { type: string, format: numeric, description: Target low }
-        target_open: { type: string, format: numeric, description: Target open}
-        target_volume: { type: string, format: numeric, description: Target volume }
+        base_close: { type: string, format: numeric, description: Base close price. }
+        base_high: { type: string, format: numeric, description: Target high price }
+        base_low: { type: string, format: numeric, description: Base low price }
+        base_open: { type: string, format: numeric, description: Base open price. }
+        base_volume: {type: string, format: numeric, description: Base volume in indivisible units. }
+        target_close: { type: string, format: numeric, description: Target close price }
+        target_high: { type: string, format: numeric, description: Target high prive. }
+        target_low: { type: string, format: numeric, description: Target low price.  }
+        target_open: { type: string, format: numeric, description: Target open price. }
+        target_volume: { type: string, format: numeric, description: Base volume in indivisible units. }
         count: { type: integer, description: Candlestick size }
         time_period_start: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
         time_period_end: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:15:00.00Z" }
@@ -201,7 +202,7 @@ paths:
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}}
   /orders:
     parameters:
-     - {in: query, name: market_id, required: true, schema: { type: string }, example: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
+     - {in: query, name: market_id, required: true, schema: { type: string }, example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
      - {in: query, name: owner, required: false, schema: { type: string }, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
      - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], example: "buy" }, example: "buy"}
     get:
@@ -256,7 +257,7 @@ paths:
      - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
      # TODO: Add paging as soon as Maestro actually supports it.
      # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
-     # TODO: consider adding support for passing price provider
+     # TODO: consider adding support for passing price provider (eventually in a future version?)
      # - {in: query, name: price_source, required: false, schema: { type: string, examples: ["minswap", "taptools"] }}
      - {in: query, name: sort, required: false, schema: { type: string, enum: [asc, desc] }}
     get:

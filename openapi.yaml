@@ -3,6 +3,10 @@ info:
   title: Genius Yield Trading Bot API
   description: Open API Specificaion of the Genius Yield Tradding Bot API for external trading strategy implementation integration.
   version: '1.0.0'
+  license:
+    name: Apache License 2.0
+    identifier: Apache-2.0
+    url: https://opensource.org/license/apache-2-0
 components:
   securitySchemes:
     ApiKeyAuth:

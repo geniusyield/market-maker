@@ -114,11 +114,13 @@ components:
       type: object
       properties:
         transaction_id: {type: string}
-        fees: {}
-        flat_fees: {}
-        offer_fee_percent: {}
-        offer_fee_amount: {}
-        deposit: {}
+        message: {type: string}
+        fees: {type: string, format: numeric}
+        flat_fees: {type: string, format: numeric}
+        offer_fee_percent: {type: string, format: numeric}
+        offer_fee_amount: {type: string, format: numeric}
+        deposit: {type: string, format: numeric}
+      required: [transaction_id, message]
     Trade:
       type: object
       properties:

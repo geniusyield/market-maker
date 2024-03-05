@@ -13,13 +13,14 @@ components:
     Settings:
       type: object
       properties: {
-          network: { type: string, enum: [prepod, mainnet], example: mainnet },
-          version: { type: string, example: "0.1.0" },
+          network: { type: string, enum: [prepod, mainnet], example: "mainnet" },
+          version: { type: string, example: "1.0.2" },
           revision: { type: string, example: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59" },
           backend: { type: string, enum: [mmb]},
           address: { type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
         }
-      required: [network, version, revision, backend, address]
+      required: [network, version, revision, backend]
+      # optional: [address]
       example:
        { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
     Fees:
@@ -65,12 +66,11 @@ components:
         valid_from: {type: string, format: date, example: 1985-04-12T23:00:00.00Z }
         valid_until: {type: string, format: date, example: 1985-04-12T23:15:00.00Z }
       required: [base_asset, base_amount, target_asset, target_amount]
-      example: 
+      example:
         { base_asset : "ADA", base_amount : "2.0123214", target_asset: "GENS", target_amount : "1.000001" }
     Orders:
       type: array
       items: {$ref: '#/components/schemas/Order'}
-    # Build Tx -------------------------------------
     BuildTxRequestBase:
       type: object
       properties:
@@ -78,40 +78,38 @@ components:
         wallet_reward_addresses: {type: array, items: {type: string}}
         wallet_unused_addresses: {type: array, items: {type: string}}
         wallet_used_addresses: {type: array, items: {type: string}}
+      required: [collateral_utxo, wallet_reward_addresses, wallet_unused_addresses, wallet_used_addresses]
     BuildPlaceOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
         - type: object
           properties:
             orders: {type: array, items: {$ref: '#/components/schemas/Order'}}
+          required: [orders]
     BuildCancelOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
         - type: object
           properties:
             orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
-    # Sign Tx -------------------------------------
-    CancelOrderSigningRequest:
+          required: [orders]
+    Transaction:
       type: object
       properties:
-        orders: {type: array, items: {type: string}}
-    PlaceOrderSigningRequest:
+        cbor_hex: {type: string}
+    SubmitTransactionResponse:
       type: object
       properties:
-        orders: { $ref: '#/components/schemas/CancelOrderSigningRequest' }
-    SigningRequest:
-      oneOf:
-        - $ref: '#/components/schemas/CancelOrderSigningRequest'
-        - $ref: '#/components/schemas/PlaceOrderSigningRequest'
+        transaction_id: {type: string}
     Trade:
       type: object
-      required: [market_id, base_asset, target_asset, pool_id, last_price, base_volume, target_volume, liquidity_in_usd]
       properties:
         trade_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
         base_volume: { type: number, format: double, description: "Transaction amount in base pair volume." }
         target_volume: { type: number, format: double, description: "Transaction amount in target pair volume." }
         trade_timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
+      required: [trade_id, base_volume, target_volume, trade_timestamp, type]
     Trades:
       type: array
       items: {$ref: '#/components/schemas/Trade'}
@@ -136,6 +134,7 @@ components:
         count: { type: integer, description: Candlestick size }
         time_period_start: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
         time_period_end: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:15:00.00Z" }
+      required: [base_close, base_high, base_low, base_open, base_volume, target_close, target_high, target_low, target_open, target_volume]
     Prices:
       type: array
       items: {$ref: '#/components/schemas/Price'}
@@ -191,52 +190,86 @@ paths:
               properties:
                 orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
       responses: {202: {description: Canceled on-chain order.}}
-  /orders/tx/build-place-order-tx:
+  /tx/build-place-order-tx:
     post:
-      tags: [orders]
-      responses: {201: {description: "Created unsigned transactions to place new orders"}}
+      tags: [tx]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/BuildPlaceOrdersTxRequest'
-  /orders/tx/build-cancel-order-tx:
+      responses:
+        201:
+          description: "Created unsigned transactions to place new orders"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+  /tx/build-cancel-order-tx:
     post:
-      tags: [orders]
-      responses: {201: {description: "Created unsigned transactions to cancel new orders"}}
+      tags: [tx]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/BuildCancelOrdersTxRequest'
-  /orders/tx/sign:
+      responses:
+        201:
+          description: "Created unsigned transactions to cancel new orders"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+  /tx/sign:
     post:
-      tags: [orders]
-      responses: {201: {description: "Created unsigned transactions to cancel existing orders"}}
+      tags: [tx]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SigningRequest'
-  /orders/tx/submit:
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        201:
+          description: "Created unsigned transactions to cancel existing orders"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+  /tx/submit:
     post:
-      tags: [orders]
-      responses: {201: {description: "Submitted the passed signed transactions and created new on-chain orders."}}
-      # result: list with the details for the transaction submittion
-  /orders/tx/sign_and_submit:
-    post:
-      tags: [orders]
+      tags: [tx]
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SigningRequest'
-      responses: {201: {description: "Succesfully singed the passed unsigned transactions and submitted the signed transactions."}}
-      # result: list with the unsigned transactions
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        201:
+          description: "Submitted the passed signed transactions and created new on-chain orders."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitTransactionResponse'
+  /tx/sign_and_submit:
+    post:
+      tags: [tx]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+      responses:
+        201:
+          description: "Submitted the passed signed transactions and created new on-chain orders."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitTransactionResponse'
   /historical_trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
@@ -255,7 +288,7 @@ paths:
      - {in: query, name: from, required: false, schema: { type: string, format: "date", example: "1996-12-19T16:39:57-08:00" }}
      - {in: query, name: to, required: false, schema: { type: string, format: "date", example: "1996-12-19T16:39:57-08:00" }}
      - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
-     # TODO: Add paging as soon as Maestro supports it.
+     # TODO: Add paging as soon as Maestro actually supports it.
      # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
      - {in: query, name: sort, required: false, schema: { type: string, enum: [asc, desc] }}
     get:

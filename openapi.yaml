@@ -20,7 +20,7 @@ components:
           address: { type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
         }
       required: [network, version, revision, backend]
-      # optional: [address]
+      optional: [address]
       example:
        { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
     Fees:
@@ -247,7 +247,7 @@ paths:
      # TODO: Add paging as soon as Maestro actually supports it.
      # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
      # TODO: consider adding support for passing price provider
-     # - {in: query, name: price_source, required: false, schema: { type: string, example: "minswap" }}
+     # - {in: query, name: price_source, required: false, schema: { type: string, examples: ["minswap", "taptools"] }}
      - {in: query, name: sort, required: false, schema: { type: string, enum: [asc, desc] }}
     get:
       tags: [price]

@@ -61,7 +61,9 @@ components:
     Balance:
       type: object
       properties:
-        asset: { type: string, description: "Ticker of a the cryptoasset, eg. ADA }"}
+        asset: { type: string, description: "Ticker of a the cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
+        asset_ticker: { type: string, description: "Ticker of a the cryptoasset", example: "GENS"}
+        asset_decimals: { type: string, format: numeric, example: "6" }
         amount: { type: string, format: numeric, description: "Amount of asset available", example: "123456789.123456789123456789" }
       required: [asset, amount]
       example:
@@ -72,13 +74,16 @@ components:
     Order:
       properties:
         base_asset: {type: string, description: "The base cryptoasset", example: "lovelaces"  }
+        # TODO: discuss if the amount should be indivisible unit or not?
         base_amount: {type: string, format: numeric, description: "Transaction amount in base pair volume.", example: "6000000" }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        # TODO: discuss if the amount should be indivisible unit or not?
         target_amount: { type: string, format: numeric, description: "Transaction amount in target pair volume." }
+        type: { type: string, enum: ["buy", "sell"], example: "buy" }
         valid_from: {type: string, format: date, example: 1985-04-12T23:00:00.00Z }
         valid_until: {type: string, format: date, example: 1985-04-12T23:15:00.00Z }
       required: [base_asset, base_amount, target_asset, target_amount]
-      # optional: [valid_from, valid_until]
+      optional: [valid_from, valid_until]
       example:
         { base_asset : "ADA", base_amount : "2.0123214", target_asset: "GENS", target_amount : "1.000001" }
     Orders:
@@ -88,10 +93,9 @@ components:
       type: object
       properties:
         collateral_utxo: {type: string}
-        wallet_reward_addresses: {type: array, items: {type: string}}
-        wallet_unused_addresses: {type: array, items: {type: string}}
-        wallet_used_addresses: {type: array, items: {type: string}}
-      required: [collateral_utxo, wallet_reward_addresses, wallet_unused_addresses, wallet_used_addresses]
+        address: {type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
+      required: []
+      optional: [collateral_utxo, address]
     BuildPlaceOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
@@ -99,6 +103,7 @@ components:
           properties:
             orders: {type: array, items: {$ref: '#/components/schemas/Order'}}
           required: [orders]
+          optional: []
     BuildCancelOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
@@ -121,15 +126,17 @@ components:
         offer_fee_amount: {type: string, format: numeric}
         deposit: {type: string, format: numeric}
       required: [transaction_id, message]
+      optional: [fees, flat_fees, offer_fee_percent, offer_fee_amount, deposit]
     Trade:
       type: object
       properties:
-        market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target, eg. ADA/GENS" }
-        base_volume: { type: number, format: double, description: "Transaction amount in base pair volume." }
-        target_volume: { type: number, format: double, description: "Transaction amount in target pair volume." }
-        trade_timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
+        timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
+        base_asset: {type: string, description: "The base cryptoasset", example: "lovelaces"  }
+        base_amount: { type: number, format: double, description: "Transaction amount in base pair volume." }
+        target_amount: { type: number, format: double, description: "Transaction amount in target pair volume." }
+        target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
-      required: [trade_id, base_volume, target_volume, trade_timestamp, type]
+      required: [timestamp, base_amount, target_amount, trade_timestamp, type]
     Trades:
       type: array
       items: {$ref: '#/components/schemas/Trade'}
@@ -179,6 +186,7 @@ paths:
   /balances:
     get:
       tags: [balances]
+      description: Get the balances of different crypto assets available for the trading bot.
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}}
   /orders:
     parameters:
@@ -216,7 +224,7 @@ paths:
               properties:
                 orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
       responses: {202: {description: Canceled on-chain order.}}
-  /historical_trades:
+  /historical-trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
      - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], example: "buy" }}
@@ -227,7 +235,7 @@ paths:
     get:
       tags: [trades]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Trades' }}}}}
-  /historical_prices:
+  /historical-prices:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
      - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], example: "30m" }}
@@ -236,11 +244,13 @@ paths:
      - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
      # TODO: Add paging as soon as Maestro actually supports it.
      # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
+     # TODO: consider adding support for passing price provider
+     # - {in: query, name: price_source, required: false, schema: { type: string, example: "minswap" }}
      - {in: query, name: sort, required: false, schema: { type: string, enum: [asc, desc] }}
     get:
       tags: [price]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}}
-  /trading_fees:
+  /trading-fees:
     get:
       tags: [fees]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Fees' }}}}}
@@ -308,7 +318,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmitTransactionResponse'
-  /tx/sign_and_submit:
+  /tx/sign-and-submit:
     post:
       tags: [tx]
       requestBody:

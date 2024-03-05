@@ -193,6 +193,7 @@ paths:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }, example: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
      - {in: query, name: owner, required: false, schema: { type: string }, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
+     - {in: query, name: owner, required: false, schema: { type: string, enum: ["buy", "sell"], example: "buy" }, example: "buy"}
     get:
       tags: [orders]
       description: Fetch orders for a specific market, like GENS/ADA for example.

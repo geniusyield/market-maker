@@ -1,4 +1,4 @@
-openapi: '3.0.3'
+openapi: '3.1.0'
 info:
   title: Genius Yield Trading Bot API
   description: Open API Specificaion of the Genius Yield Tradding Bot API for external trading strategy implementation integration.
@@ -44,17 +44,17 @@ components:
         target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         target_asset_ticker: { type: string, description: "Symbol of the target cryptoasset", example: "GENS" }
         target_asset_decimals: { type: string, format: numeric, example: "6" }
-      required: [market_id, base_asset, base_asset_ticker, target_asset]
+      required: [market_id, base_asset, base_asset_ticker, base_asset_decimals, target_asset, target_asset_ticker, target_asset_decimals]
       example:
-      {
-         market_id: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-         base_asset: "lovelaces",
-         base_asset_ticker: "ADA",
-         base_asset_decimals: "6",
-         target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-         target_asset_ticket: "GENS",
-         target_asset_decimals: "6"
-      }
+        {
+          market_id: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          base_asset: "lovelaces",
+          base_asset_ticker: "ADA",
+          base_asset_decimals: "6",
+          target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          target_asset_ticket: "GENS",
+          target_asset_decimals: "6"
+        }
     Markets:
       type: array
       items: {$ref: '#/components/schemas/Market'}
@@ -71,13 +71,14 @@ components:
       items: {$ref: '#/components/schemas/Balance'}
     Order:
       properties:
-        base_asset: {type: string, description: Ticker of a the base cryptoasset, eg. ADA }
-        base_amount: {type: string, format: numeric, description: Transaction amount in base pair volume. }
-        target_asset: {type: string, description: Symbol of the target cryptoasset, eg. GENS }
+        base_asset: {type: string, description: "The base cryptoasset", example: "lovelaces"  }
+        base_amount: {type: string, format: numeric, description: "Transaction amount in base pair volume.", example: "6000000" }
+        target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         target_amount: { type: string, format: numeric, description: "Transaction amount in target pair volume." }
         valid_from: {type: string, format: date, example: 1985-04-12T23:00:00.00Z }
         valid_until: {type: string, format: date, example: 1985-04-12T23:15:00.00Z }
       required: [base_asset, base_amount, target_asset, target_amount]
+      # optional: [valid_from, valid_until]
       example:
         { base_asset : "ADA", base_amount : "2.0123214", target_asset: "GENS", target_amount : "1.000001" }
     Orders:
@@ -113,6 +114,11 @@ components:
       type: object
       properties:
         transaction_id: {type: string}
+        fees: {}
+        flat_fees: {}
+        offer_fee_percent: {}
+        offer_fee_amount: {}
+        deposit: {}
     Trade:
       type: object
       properties:
@@ -174,8 +180,8 @@ paths:
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}}
   /orders:
     parameters:
-     - {in: query, name: market_id, required: true, schema: { type: string }}
-     - {in: query, name: owner, required: false, schema: { type: string }}
+     - {in: query, name: market_id, required: true, schema: { type: string }, example: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
+     - {in: query, name: owner, required: false, schema: { type: string }, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
     get:
       tags: [orders]
       description: Fetch orders for a specific market, like GENS/ADA for example.

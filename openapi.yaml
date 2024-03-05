@@ -26,10 +26,10 @@ components:
     Fees:
       type: object
       properties: {
-          flat_maker_fee: { type: string },
-          flat_taker_fee: { type: string },
-          percentage_maker_fee: { type: string },
-          percentage_taker_fee: { type: string }
+          flat_maker_fee: { type: string, format: numeric },
+          flat_taker_fee: { type: string, format: numeric },
+          percentage_maker_fee: { type: string, format: numeric },
+          percentage_taker_fee: { type: string, format: numeric }
         }
       required: [flat_maker_fee, flat_taker_fee, percentage_maker_fee, percentage_taker_fee]
       example:
@@ -37,8 +37,8 @@ components:
     Market:
       type: object
       properties:
-        market_id: { type: string, description: "Identifier of a ticker with delimiter to separate base/target", example: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        base_asset: { type: string, description: "Identifier of the base asset eg. lovelaces" }
+        market_id: { type: string, description: "Identifier of a market with concataned asset IDs with underscore delimiter to separate base and target.", example: "lovelaces_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovalaces", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
         base_asset_ticker: { type: string, description: "Ticker of a the base cryptoasset.", example: "ADA" }
         base_asset_decimals: { type: string, format: numeric, example: "6" }
         target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
@@ -64,6 +64,7 @@ components:
         asset: { type: string, description: "Ticker of a the cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
         asset_ticker: { type: string, description: "Ticker of a the cryptoasset", example: "GENS"}
         asset_decimals: { type: string, format: numeric, example: "6" }
+        # TODO: discuss if the amount should be indivisible unit or not?
         amount: { type: string, format: numeric, description: "Amount of asset available", example: "123456789.123456789123456789" }
       required: [asset, amount]
       example:
@@ -92,7 +93,7 @@ components:
     BuildTxRequestBase:
       type: object
       properties:
-        collateral_utxo: {type: string}
+        collateral_utxo: {type: string, example: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"}
         address: {type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
       required: []
       optional: [collateral_utxo, address]

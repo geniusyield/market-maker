@@ -443,7 +443,7 @@ paths:
   /tx/sign-and-submit:
     post:
       tags: [tx]
-      description: Sign and sign a transaction.
+      description: Sign and submit a transaction.
       requestBody:
         required: true
         content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}

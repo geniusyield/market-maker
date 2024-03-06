@@ -19,9 +19,6 @@ servers:
       backendServerUrl:
         default: localhost
         description: The URI of the Trading Bot API backend.
-        enum:
-          - localhost
-          - mmb
       apiVersion:
         default: v1
         description: API version number

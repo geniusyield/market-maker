@@ -38,9 +38,7 @@ components:
               items:
                 type: string
               description: Optional array of detailed error messages or information.
-      required:
-        - code
-        - message
+      required: [code, message]
     Settings:
       type: object
       properties: {

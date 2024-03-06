@@ -8,7 +8,6 @@ info:
   license:
     name: Apache License 2.0
     identifier: Apache-2.0
-    url: https://opensource.org/license/apache-2-0
   contact:
     name: Genius Yield Technical Support
     url: https://www.geniusyield.co/
@@ -244,18 +243,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmitTransactionResponse'
+  /orders/{order_ids}:
     delete:
       tags: [orders]
-      description: Cancels an exisiting on-chain order.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
-      responses: {202: {description: Canceled on-chain order.}}
+      description: Cancels exisiting on-chain orders
+      parameters:
+       - {in: path, name: order_ids, required: true, schema: { type: string }}
+      responses: {202: {description: Canceled on-chain orders.}}
   /historical-trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}

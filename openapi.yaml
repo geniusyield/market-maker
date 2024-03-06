@@ -100,8 +100,8 @@ components:
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         target_amount: { type: string, format: integer, description: "Transaction amount in target pair volume  in indivisible units." }
         type: { type: string, enum: ["buy", "sell"], example: "buy" }
-        valid_from: {type: string, format: date, example: 1985-04-12T23:00:00.00Z }
-        valid_until: {type: string, format: date, example: 1985-04-12T23:15:00.00Z }
+        valid_from: {type: string, format: date, example: "1985-04-12T23:00:00.00Z" }
+        valid_until: {type: string, format: date, example: "1985-04-12T23:15:00.00Z" }
       required: [base_asset, base_amount, target_asset, target_amount]
       optional: [valid_from, valid_until]
       example:

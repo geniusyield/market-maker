@@ -1,7 +1,7 @@
 openapi: '3.1.0'
 info:
   title: Genius Yield Trading Bot API
-  description: Open API Specificaion of the Genius Yield Tradding Bot API for external trading strategy implementation integration.
+  description: Open API Specification of the Genius Yield Trading Bot API for external trading strategy implementation integration.
   version: '1.0.0'
   # TODO: consider adding terms of service
   # termsOfService: https://www.geniusyield.co/terms-of-service
@@ -18,41 +18,63 @@ components:
       type: apiKey
       in: header
       name: X-API-Key
+      description: API key to access the Trading Bot API.
   schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              format: int32
+              description: Numeric error code indicating the type of error.
+            message:
+              type: string
+              description: Human-readable message providing more details about the error.
+            details:
+              type: array
+              items:
+                type: string
+              description: Optional array of detailed error messages or information.
+      required:
+        - code
+        - message
     Settings:
       type: object
       properties: {
-          network: { type: string, enum: [prepod, mainnet], example: "mainnet" },
-          version: { type: string, example: "1.0.2" },
-          revision: { type: string, example: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59" },
-          backend: { type: string, enum: [mmb]},
-          address: { type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" },
-          collateral_utxo: { type: string, example: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
+          network: { type: string, enum: ["preprod", "mainnet"], examples: ["mainnet", "preprod"] },
+          version: { type: string, examples: ["1.0.2"] },
+          revision: { type: string, examples: ["c7cc91eec7f3d50b8de196a01034b0cc7097ae59"] },
+          backend: { type: string, enum: ["mmb"]},
+          address: { type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"] },
+          collateral_utxo: { type: string, examples: ["33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"] }
         }
       required: [network, version, revision, backend]
-      optional: [address, collateral_utxo]
-      example:
-       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f", collateral_utxo: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
+      examples:
+      - { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f", collateral_utxo: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
+      - { network: "preprod", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f", collateral_utxo: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
     Fees:
       type: object
       properties: {
-          flat_maker_fee: { type: string, format: numeric },
-          flat_taker_fee: { type: string, format: numeric },
-          percentage_maker_fee: { type: string, format: numeric },
-          percentage_taker_fee: { type: string, format: numeric }
+          flat_maker_fee: { type: number, format: double  },
+          flat_taker_fee: { type: number, format: double  },
+          percentage_maker_fee: { type: number, format: double  },
+          percentage_taker_fee: { type: number, format: double  }
         }
       required: [flat_maker_fee, flat_taker_fee, percentage_maker_fee, percentage_taker_fee]
-      example:
-       { flat_maker_fee: "1.2", flat_taker_fee: "2.3", percentage_maker_fee: "0.75", percentage_taker_fee: "1.25" }
+      examples:
+      - { flat_maker_fee: "1.2", flat_taker_fee: "2.3", percentage_maker_fee: "0.75", percentage_taker_fee: "1.25" }
     Market:
       type: object
       properties:
-        market_id: { type: string, description: "Identifier of a market with concataned asset IDs with underscore delimiter to separate base and target.", example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovalace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
+        market_id: { type: string, description: "Identifier of a market with concatenated asset IDs with underscore delimiter to separate base and target.", example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
         target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
       required: [market_id, base_asset, target_asset]
-      example:
-        {
+      examples:
+      - {
           market_id: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
           base_asset: "lovelace",
           target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"
@@ -65,10 +87,10 @@ components:
       properties:
         asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
         asset_ticker: { type: string, description: "Ticker of the cryptoasset.", examples: ["ADA", "GENS"] }
-        asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
+        asset_decimals: { type: integer, format: int32, minimum: 0, examples: [0, 6] }
       required: [asset, asset_ticker, asset_decimals]
-      example:
-        {
+      examples:
+      - {
           asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
           asset_ticker: "GENS",
           asset_decimals: 6
@@ -82,8 +104,8 @@ components:
         asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"]}
         amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", example: "123456789123456789123456789" }
       required: [asset, amount]
-      example:
-        {
+      examples:
+      - {
           asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
           asset_ticker: "GENS",
           asset_decimals: 6,
@@ -101,10 +123,15 @@ components:
         type: { type: string, enum: ["buy", "sell"], example: "buy" }
         valid_from: {type: string, format: date, example: "1985-04-12T23:00:00.00Z" }
         valid_until: {type: string, format: date, example: "1985-04-12T23:15:00.00Z" }
-      required: [base_asset, base_amount, target_asset, target_amount]
-      optional: [valid_from, valid_until]
-      example:
-        { base_asset : "lovelace", base_amount : "4000000", target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", target_amount : "1000000" }
+      required: [base_asset, base_amount, target_asset, target_amount, type]
+      examples:
+      - { 
+          base_asset : "lovelace",
+          base_amount : "4000000",
+          target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          target_amount : "1000000",
+          type : "buy"
+        }
     Orders:
       type: array
       items: {$ref: '#/components/schemas/Order'}
@@ -114,7 +141,6 @@ components:
         collateral_utxo: {type: string, example: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"}
         address: {type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
       required: []
-      optional: [collateral_utxo, address]
     BuildPlaceOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
@@ -122,7 +148,6 @@ components:
           properties:
             orders: {type: array, items: {$ref: '#/components/schemas/Order'}}
           required: [orders]
-          optional: []
     BuildCancelOrdersTxRequest:
       allOf:
         - $ref: '#/components/schemas/BuildTxRequestBase'
@@ -144,25 +169,24 @@ components:
         offer_fee_percent: {type: string, format: numeric}
         offer_fee_amount: {type: string, format: numeric}
         deposit: {type: string, format: numeric}
-      required: [transaction_id, message]
-      optional: [fees, flat_fees, offer_fee_percent, offer_fee_amount, deposit]
+      required: [transaction_id, message, fees, flat_fees, offer_fee_percent, offer_fee_percent, offer_fee_amount, deposit]
     Trade:
       type: object
       properties:
         timestamp: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
         base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
-        base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisibleunits." }
+        base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units." }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         target_asset_amount: { type: string, format: integer, description: "Transaction amount in target pair volume in indivisible units." }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
-      required: [timestamp, base_amount, target_amount, trade_timestamp, type]
+      required: [timestamp, base_asset, base_asset_amount, target_asset, target_asset_amount, type]
     Trades:
       type: array
       items: {$ref: '#/components/schemas/Trade'}
-      example:
-        [
+      examples:
+      - [
          { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "2000000", type: "buy"},
-         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "5000000", type: "sel"},
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "5000000", type: "sell"},
         ]
     Price:
       type: object
@@ -173,7 +197,7 @@ components:
         base_open: { type: string, format: numeric, description: Base open price. }
         base_volume: {type: string, format: numeric, description: Base volume in indivisible units. }
         target_close: { type: string, format: numeric, description: Target close price }
-        target_high: { type: string, format: numeric, description: Target high prive. }
+        target_high: { type: string, format: numeric, description: Target high price. }
         target_low: { type: string, format: numeric, description: Target low price.  }
         target_open: { type: string, format: numeric, description: Target open price. }
         target_volume: { type: string, format: numeric, description: Base volume in indivisible units. }
@@ -188,15 +212,23 @@ security:
   - ApiKeyAuth: [read, write]
 tags:
   - name: settings
+    description: Endpoints to access configuration settings and Trading Bot API backend metadata.
   - name: assets
+    description: Endpoints to access the details of the available assets.
   - name: markets
+    description: Endpoints to access the details of the trading pairs available via the Trading Bot API.
   - name: balances
+    description: Endpoints to access the asset balances available for the trading bot.
   - name: orders
+    description: Endpoints to access the orderbook(s), place new orders or cancel existing orders.
   - name: trades
+    description: Endpoints to access historical trades.
   - name: prices
-externalDocs:
- description: Bot API Documentation
- url: https://www.bot-api-docs.geniusyield.co/
+    description: Endpoints to access historical prices.
+# TODO: consider adding external docs.
+# externalDocs:
+#  description: Bot API Documentation
+#  url: https://www.bot-api-docs.geniusyield.co/
 servers:
   - url: https://localhost:4000/
   - url: https://bot.api.geniusyield.co/
@@ -204,20 +236,32 @@ paths:
   /settings:
     get:
       tags: [settings]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Settings' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Settings' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /assets:
     get:
       tags: [assets]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Assets' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Assets' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /markets:
     get:
       tags: [markets]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Markets' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Markets' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /balances:
     get:
       tags: [balances]
       description: Get the balances of different crypto assets available for the trading bot.
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /orders:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }, example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
@@ -226,7 +270,10 @@ paths:
     get:
       tags: [orders]
       description: Fetch orders for a specific market, like GENS/ADA for example.
-      responses: {200: {description: Successfully fetched orders, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
     post:
       tags: [orders]
       description: Create new on-chain order (places an order).
@@ -243,13 +290,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmitTransactionResponse'
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /orders/{order_ids}:
     delete:
       tags: [orders]
-      description: Cancels exisiting on-chain orders
+      description: Cancels exisiting on-chain orders (supports batch cancellating).
       parameters:
-       - {in: path, name: order_ids, required: true, schema: { type: string }}
-      responses: {202: {description: Canceled on-chain orders.}}
+       - in: path
+         name: order_ids
+         description: Comma-separated list of orders to be cancelled.
+         required: true
+         schema: { type: string }
+      responses: 
+        202: {description: Canceled on-chain orders.}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
@@ -260,7 +316,10 @@ paths:
      - {in: query, name: end_time, required: false, schema: { type: string, format: "date", example: "1996-12-19T17:39:57-08:00" }}
     get:
       tags: [trades]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Trades' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Trades' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-prices:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
@@ -272,14 +331,20 @@ paths:
      # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
      # TODO: consider adding support for passing price provider (eventually in a future version?)
      # - {in: query, name: price_source, required: false, schema: { type: string, examples: ["minswap", "taptools"] }}
-     - {in: query, name: sort, required: false, schema: { type: string, enum: [asc, desc] }}
+     - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
     get:
       tags: [price]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /trading-fees:
     get:
       tags: [fees]
-      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Fees' }}}}}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Fees' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/build-place-order-tx:
     post:
       tags: [tx]
@@ -296,6 +361,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/build-cancel-order-tx:
     post:
       tags: [tx]
@@ -312,6 +379,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/sign:
     post:
       tags: [tx]
@@ -328,6 +397,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/submit:
     post:
       tags: [tx]
@@ -344,6 +415,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmitTransactionResponse'
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/sign-and-submit:
     post:
       tags: [tx]
@@ -360,3 +433,5 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmitTransactionResponse'
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}

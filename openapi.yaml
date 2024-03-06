@@ -238,6 +238,8 @@ tags:
     description: Endpoints to access historical trades.
   - name: prices
     description: Endpoints to access historical prices.
+  - name: tx
+    description: "Endpoints enabling working with transactions, and provides support for tasks like; building, signing and submitting transactions."
 # TODO: consider adding external docs.
 # externalDocs:
 #  description: Bot API Documentation
@@ -359,10 +361,7 @@ paths:
       tags: [tx]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BuildPlaceOrdersTxRequest'
+        content: {application/json: {schema: {$ref: '#/components/schemas/BuildPlaceOrdersTxRequest'}}}
       responses:
         201:
           description: "Created unsigned transactions to place new orders"
@@ -374,10 +373,7 @@ paths:
       tags: [tx]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BuildCancelOrdersTxRequest'
+        content: {application/json: {schema: {$ref: '#/components/schemas/BuildCancelOrdersTxRequest'}}}
       responses:
         201:
           description: "Created unsigned transactions to cancel new orders"
@@ -389,10 +385,7 @@ paths:
       tags: [tx]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Transaction'
+        content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
       responses:
         201:
           description: "Created unsigned transactions to cancel existing orders"
@@ -404,10 +397,7 @@ paths:
       tags: [tx]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Transaction'
+        content: {application/json: {{schema: {$ref: '#/components/schemas/Transaction'}}}}
       responses:
         201:
           description: "Submitted the passed signed transactions and created new on-chain orders."
@@ -419,10 +409,7 @@ paths:
       tags: [tx]
       requestBody:
         required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Transaction'
+        content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
       responses:
         201:
           description: "Submitted the passed signed transactions and created new on-chain orders."

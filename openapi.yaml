@@ -40,6 +40,9 @@ components:
               type: integer
               format: int32
               description: Numeric error code indicating the type of error.
+            instance:
+              type: string
+              description: Unique identifier of the indicent instance (used for troubleshooting).
             message:
               type: string
               description: Human-readable message providing more details about the error.
@@ -53,7 +56,7 @@ components:
       type: object
       properties: {
           network: { type: string, enum: ["preprod", "mainnet"], examples: ["mainnet", "preprod"] },
-          version: { type: string, examples: ["1.0.2"] },
+          version: { type: string, examples: ["1.0.2"], pattern: "[0-9].[0-9].[0-9]" },
           revision: { type: string, examples: ["c7cc91eec7f3d50b8de196a01034b0cc7097ae59"] },
           backend: { type: string, enum: ["mmb"]},
           address: { type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"] },
@@ -66,10 +69,10 @@ components:
     Fees:
       type: object
       properties: {
-          flat_maker_fee: { type: number, format: double  },
-          flat_taker_fee: { type: number, format: double  },
-          percentage_maker_fee: { type: number, format: double  },
-          percentage_taker_fee: { type: number, format: double  }
+          flat_maker_fee: { type: number, format: double, minimum: 0 },
+          flat_taker_fee: { type: number, format: double, minimum: 0 },
+          percentage_maker_fee: { type: number, format: double, minimum: 0, maximum: 100  },
+          percentage_taker_fee: { type: number, format: double, minimum: 0, maximum: 100  }
         }
       required: [flat_maker_fee, flat_taker_fee, percentage_maker_fee, percentage_taker_fee]
       examples:
@@ -120,8 +123,6 @@ components:
       examples:
       - {
           asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-          asset_ticker: "GENS",
-          asset_decimals: 6,
           amount: "4531034100"
         }
     Balances:
@@ -144,6 +145,15 @@ components:
           target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
           target_amount : "1000000",
           type : "buy"
+        }
+      - {
+          base_asset : "lovelace",
+          base_amount : "4000000",
+          target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          target_amount : "1000000",
+          type : "buy",
+          valid_from: "2024-04-12T23:00:00.00Z",
+          valid_until: "2024-04-13T23:00:00.00Z",
         }
     Orders:
       type: array
@@ -252,6 +262,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Settings' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /assets:
     get:
@@ -260,6 +271,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Assets' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /markets:
     get:
@@ -268,6 +280,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Markets' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /balances:
     get:
@@ -276,6 +289,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /orders:
     get:
@@ -288,6 +302,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
     post:
       tags: [orders]
@@ -303,6 +318,7 @@ paths:
           description: "Succesfully created new on-chain orders."
           content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /orders/{order_ids}:
     delete:
@@ -319,6 +335,9 @@ paths:
           description: Canceled on-chain orders.
           content: { application/json: { schema: { $ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        # TODO: discuss how to handle if a few could not be found for batch deletion
+        404: {description: Order not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-trades:
     get:
@@ -334,6 +353,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Trades' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-prices:
     get:
@@ -342,6 +362,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /trading-fees:
     get:
@@ -361,6 +382,7 @@ paths:
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Fees' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/build-place-order-tx:
     post:
@@ -374,6 +396,7 @@ paths:
           description: "Created unsigned transactions to place new orders"
           content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/build-cancel-order-tx:
     post:
@@ -387,6 +410,7 @@ paths:
           description: "Created unsigned transactions to cancel new orders"
           content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/sign:
     post:
@@ -400,6 +424,7 @@ paths:
           description: "Created unsigned transactions to cancel existing orders"
           content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/submit:
     post:
@@ -413,6 +438,7 @@ paths:
           description: "Submitted the passed signed transactions and created new on-chain orders."
           content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/sign-and-submit:
     post:
@@ -426,4 +452,5 @@ paths:
           description: "Submitted the passed signed transactions and created new on-chain orders."
           content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}

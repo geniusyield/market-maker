@@ -65,7 +65,7 @@ components:
       type: object
       properties:
         asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
-        asset_ticker: { type: string, description: "Ticker of a the cryptoasset.", examples: ["ADA", "GENS"] }
+        asset_ticker: { type: string, description: "Ticker of the cryptoasset.", examples: ["ADA", "GENS"] }
         asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
       required: [asset, asset_ticker, asset_decimals]
       example:
@@ -84,7 +84,12 @@ components:
         amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", example: "123456789123456789123456789" }
       required: [asset, amount]
       example:
-       { asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", asset_ticker: "GENS", asset_decimals: 6, amount: "4531034100" }
+        {
+          asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          asset_ticker: "GENS",
+          asset_decimals: 6,
+          amount: "4531034100"
+        }
     Balances:
       type: array
       items: {$ref: '#/components/schemas/Balance'}
@@ -145,7 +150,7 @@ components:
     Trade:
       type: object
       properties:
-        timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
+        timestamp: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
         base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
         base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisibleunits." }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
@@ -174,15 +179,22 @@ components:
         target_open: { type: string, format: numeric, description: Target open price. }
         target_volume: { type: string, format: numeric, description: Base volume in indivisible units. }
         count: { type: integer, description: Candlestick size }
-        time_period_start: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:00:00.00Z" }
-        time_period_end: { type: string , description: Trade timestamp, format: "date", example: "1985-04-12T23:15:00.00Z" }
-      required: [base_close, base_high, base_low, base_open, base_volume, target_close, target_high, target_low, target_open, target_volume]
+        time_period_start: { type: string , description: "Timestamp of the start of the time period", format: "date", example: "1985-04-12T23:00:00.00Z" }
+        time_period_end: { type: string , description: "Timestamp of the end of the time period", format: "date", example: "1985-04-12T23:15:00.00Z" }
+      required: [base_close, base_high, base_low, base_open, base_volume, target_close, target_high, target_low, target_open, target_volume, count, time_period_start, time_period_end]
     Prices:
       type: array
       items: {$ref: '#/components/schemas/Price'}
 security:
   - ApiKeyAuth: [read, write]
-tags: [{name: markets}, {name: orders}, {name: trades}, {name: prices}, {name: settings}]
+tags:
+  - name: settings
+  - name: assets
+  - name: markets
+  - name: balances
+  - name: orders
+  - name: trades
+  - name: prices
 externalDocs:
  description: Bot API Documentation
  url: https://www.bot-api-docs.geniusyield.co/

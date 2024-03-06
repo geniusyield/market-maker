@@ -27,12 +27,13 @@ components:
           version: { type: string, example: "1.0.2" },
           revision: { type: string, example: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59" },
           backend: { type: string, enum: [mmb]},
-          address: { type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
+          address: { type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" },
+          collateral_utxo: { type: string, example: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
         }
       required: [network, version, revision, backend]
-      optional: [address]
+      optional: [address, collateral_utxo]
       example:
-       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f" }
+       { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f", collateral_utxo: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
     Fees:
       type: object
       properties: {
@@ -50,7 +51,7 @@ components:
         market_id: { type: string, description: "Identifier of a market with concataned asset IDs with underscore delimiter to separate base and target.", example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovalace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
         target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-      required: [market_id, base_asset, base_asset_ticker, base_asset_decimals, target_asset, target_asset_ticker, target_asset_decimals]
+      required: [market_id, base_asset, target_asset]
       example:
         {
           market_id: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
@@ -66,7 +67,7 @@ components:
         asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
         asset_ticker: { type: string, description: "Ticker of a the cryptoasset.", examples: ["ADA", "GENS"] }
         asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
-      required: [market_id, base_asset, base_asset_ticker, base_asset_decimals, target_asset, target_asset_ticker, target_asset_decimals]
+      required: [asset, asset_ticker, asset_decimals]
       example:
         {
           asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
@@ -99,7 +100,7 @@ components:
       required: [base_asset, base_amount, target_asset, target_amount]
       optional: [valid_from, valid_until]
       example:
-        { base_asset : "ADA", base_amount : "2.0123214", target_asset: "GENS", target_amount : "1.000001" }
+        { base_asset : "lovelace", base_amount : "4000000", target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", target_amount : "1000000" }
     Orders:
       type: array
       items: {$ref: '#/components/schemas/Order'}

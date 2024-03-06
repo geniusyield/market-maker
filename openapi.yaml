@@ -38,6 +38,8 @@ components:
           properties:
             code:
               type: integer
+              minimum: 0
+              maximum: 9999
               format: int32
               description: Numeric error code indicating the type of error.
             instance:

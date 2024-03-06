@@ -13,7 +13,7 @@ info:
     url: https://www.geniusyield.co/
     email: support@geniusyield.co
 servers:
-  - url: https://{backendServerUrl}/{apiVersion}
+  - url: https://{backendServerUrl}/api/{apiVersion}
     description: Trading Bot API backend with environment and version
     variables:
       backendServerUrl:

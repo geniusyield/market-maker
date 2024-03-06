@@ -2,9 +2,7 @@ openapi: '3.1.0'
 info:
   title: Genius Yield Trading Bot API
   description: Open API Specification of the Genius Yield Trading Bot API for external trading strategy implementation integration.
-  version: '1.0.0'
-  # TODO: consider adding terms of service
-  # termsOfService: https://www.geniusyield.co/terms-of-service
+  version: '0.0.1'
   license:
     name: Apache License 2.0
     identifier: Apache-2.0
@@ -20,7 +18,7 @@ servers:
         default: localhost
         description: The URI of the Trading Bot API backend.
       apiVersion:
-        default: v1
+        default: v0
         description: API version number
 components:
   securitySchemes:
@@ -252,10 +250,6 @@ tags:
     description: Endpoints to access historical prices.
   - name: tx
     description: "Endpoints enabling working with transactions, and provides support for tasks like; building, signing and submitting transactions."
-# TODO: consider adding external docs.
-# externalDocs:
-#  description: Bot API Documentation
-#  url: https://www.bot-api-docs.geniusyield.co/
 paths:
   /settings:
     get:
@@ -338,7 +332,6 @@ paths:
           content: { application/json: { schema: { $ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
-        # TODO: discuss how to handle if a few could not be found for batch deletion
         404: {description: Order not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-trades:
@@ -357,21 +350,35 @@ paths:
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
-  /historical-prices:
+  /historical-prices/maestro:
     get:
       tags: [prices]
       parameters:
+      - {in: path, name: provider, required: true, default: "maestro", schema: { type: string }}
       - {in: query, name: market_id, required: true, schema: { type: string }}
       - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], examples: ["30m"] }}
       - {in: query, name: from, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
       - {in: query, name: to, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
       - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
-      # TODO: Add paging as soon as Maestro actually supports it.
-      # - {in: query, name: page, required: false, schema: { type: integer, examples: ["1"] }}
       - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
       description: Fetch price history.
-      # TODO: consider adding support for passing price provider (eventually in a future version?)
-      # - {in: query, name: price_source, required: false, schema: { type: string, examples: ["minswap", "taptools"] }}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /historical-prices/taptools:
+    get:
+      tags: [prices]
+      parameters:
+      - {in: path, name: provider, required: true, default: "maestro", schema: { type: string }}
+      - {in: query, name: market_id, required: true, schema: { type: string }}
+      - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], examples: ["30m"] }}
+      - {in: query, name: from, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: to, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
+      - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
+      description: Fetch price history.
       responses:
         200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}

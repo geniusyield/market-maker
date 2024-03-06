@@ -357,15 +357,7 @@ paths:
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-prices:
     get:
-      tags: [price]
-      description: Fetch price history.
-      responses:
-        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
-        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
-        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
-        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
-  /trading-fees:
-    get:
+      tags: [prices]
       parameters:
       - {in: query, name: market_id, required: true, schema: { type: string }}
       - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], examples: ["30m"] }}
@@ -374,9 +366,17 @@ paths:
       - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
       # TODO: Add paging as soon as Maestro actually supports it.
       # - {in: query, name: page, required: false, schema: { type: integer, examples: ["1"] }}
+      - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
+      description: Fetch price history.
       # TODO: consider adding support for passing price provider (eventually in a future version?)
       # - {in: query, name: price_source, required: false, schema: { type: string, examples: ["minswap", "taptools"] }}
-      - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /trading-fees:
+    get:
       tags: [fees]
       description: Fetch the current trading fees.
       responses:

@@ -138,7 +138,7 @@ components:
         valid_until: {type: string, format: date-time, examples: ["1985-04-12T23:15:00.00Z"] }
       required: [base_asset, base_amount, target_asset, target_amount, type]
       examples:
-      - { 
+      - {
           base_asset : "lovelace",
           base_amount : "4000000",
           target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
@@ -296,10 +296,7 @@ paths:
       responses:
         201:
           description: "Succesfully created new on-chain orders."
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubmitTransactionResponse'
+          content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /orders/{order_ids}:
@@ -312,8 +309,10 @@ paths:
          description: Comma-separated list of orders to be cancelled.
          required: true
          schema: { type: string }
-      responses: 
-        202: {description: Canceled on-chain orders.}
+      responses:
+        202:
+          description: Canceled on-chain orders.
+          content: { application/json: { schema: { $ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /historical-trades:
@@ -367,10 +366,7 @@ paths:
       responses:
         201:
           description: "Created unsigned transactions to place new orders"
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
+          content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/build-cancel-order-tx:
@@ -385,10 +381,7 @@ paths:
       responses:
         201:
           description: "Created unsigned transactions to cancel new orders"
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
+          content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/sign:
@@ -403,10 +396,7 @@ paths:
       responses:
         201:
           description: "Created unsigned transactions to cancel existing orders"
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Transaction'
+          content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/submit:
@@ -421,10 +411,7 @@ paths:
       responses:
         201:
           description: "Submitted the passed signed transactions and created new on-chain orders."
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubmitTransactionResponse'
+          content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /tx/sign-and-submit:
@@ -439,9 +426,6 @@ paths:
       responses:
         201:
           description: "Submitted the passed signed transactions and created new on-chain orders."
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SubmitTransactionResponse'
+          content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
         400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}

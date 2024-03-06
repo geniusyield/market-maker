@@ -1,4 +1,15 @@
-# Market maker bot
+
+<h1 align="center">Market Maker Bot</h1>
+<p align="center">
+  <a href="https://github.com/geniusyield/market-maker/actions?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/geniusyield/market-maker/build.yml?style=flat-square&branch=main&label=Build" /></a>
+  <a href="https://www.haskell.org/"><img alt="GitHub top language" src="https://img.shields.io/github/languages/top/geniusyield/market-maker?style=flat-square"></a>
+  <a href="https://github.com/geniusyield/market-maker/commits/main"><img src="https://img.shields.io/github/commit-activity/m/geniusyield/market-maker?style=flat-square&label=Commit%20Activity" /></a>
+  <a href="https://github.com/geniusyield/market-maker/blob/main/LICENSE"><img alt="GitHub License" src="https://img.shields.io/github/license/geniusyield/market-maker?label=License&style=flat-square" /></a>
+  <a href="./CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" /></a>
+  <a href="https://twitter.com/GeniusyieldO"><img src="https://img.shields.io/badge/-%40GeniusYieldO-F3F1EF?style=flat-square&logo=twitter&logoColor=1D9BF0" /></a>
+  <a href="https://discord.gg/TNHf4fs626"><img src="https://img.shields.io/badge/-Discord-414EEC?style=flat-square&logo=discord&logoColor=white" /></a>
+</p>
+
 
 > [!WARNING]
 > Market making is a risky activity and running this bot can lead to loss of funds.
@@ -138,12 +149,13 @@ https://github.com/geniusyield/market-maker/blob/eeb410f3936e6610797e6402c4dd2fd
 
   * `sc_spread` - Ratio representing `δ` as described before.
   * `sc_cancel_threshold_product` - If the price in buy order is less than `(1 - sc_cancel_threshold_product * δ) * M`, then it is canceled. Likewise if the price in sell order is greater than `(1 + sc_cancel_threshold_product * δ) * M` then it is canceled.
+  * _[Since version 0.2.1]_ `sc_cancel_window_ratio` (optional) - We aim to cancel those orders for which market price has "crossed" them within our configured `sc_cancel_window_ratio`. I.e., if price of created sell order is denoted by `ps` and current market price by `cp`, then we'll cancel this sell order if `ps * (1 - sc_cancel_window_ratio) <= cp`. Likewise, if price of buy order is denoted by `pb`, then it will be cancelled if `pb * (1 + sc_cancel_window_ratio) >= cp`. If value of `sc_cancel_window_ratio` is not specified, then we assume it to be zero.
   * `sc_token_volume` specifies following:
     * `tv_sell_min_vol` - Amount of commodity tokens (in lowest possible denomination) that order must at least offer.
     * `tv_buy_min_vol` - Amount of currency tokens (in lovelaces) that order must at least offer.
     * `tv_sell_budget` - Total amount of commodity tokens that bot can cumulatively offer in the orders. In every iteration, bot determines the number of commodity tokens locked in the orders and subtracts it from `tv_sell_budget` field, let's call the obtained number `asb` (short for _available sell budget_) then it determines number of sell orders placed to be `⌊asb / tv_sell_min_vol⌋ = ns` where `ns` is short of number of sell orders. Now bot would place `ns` sell orders, each having offer amount as `⌊asb / ns⌋`.
     * `tv_buy_budget` - Total amount of currency tokens that bot can cumulatively offer in the orders. It governs bot symmetric to `tv_sell_budget`.
-    * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 + sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity than bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
+    * `tv_sell_vol_threshold` - this is related to `sc_price_check_product`. Bot would build an order book from all the orders for the given pair in GeniusYield DEX. It will sum the offered commodity tokens for sell orders which have price less than `M * (1 + sc_price_check_product * δ)` to get `SV` (short for sell volume) and sum the asked commodity tokens for buy orders which have price greater than `M * (1 - sc_price_check_product * δ)` to get `BV'` (short for buy volume in commodity token). We'll multiply `BV'` with `M` to get `BV` to represent buy volume in currency token. Now, bot would not place a new sell order, if `tv_sell_vol_threshold` is less than or equal to `SV`. Idea is that if there is enough liquidity then bot need not place orders. Symmetrically, bot would not place new buy orders only if `tv_buy_vol_threshold` is less than or equal to `BV`.
 * `mbc_token` specifies the commodity token with it's precision. Note that this must not be ADA!
 
 ## Canceling all the orders using docker (simple)
@@ -203,7 +215,7 @@ Order cancellation is slightly complex.
 
 ### Equity monitoring
 
-Bot repeatedly logs for "equity" in terms of ADA where ADA equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ADA and 500 GENS and if price of 1 GENS is 2 ADA, then equity of wallet would be 1500 ADA.
+Bot repeatedly logs for "normalized equity" in terms of ADA where ADA equivalent of commodity token is obtained by using price provider. As an example, if wallet has 500 ADA and 500 GENS and if price of 1 GENS is 2 ADA, then equity of wallet would be 1500 ADA. Besides normalized version, bot also logs for equity in terms of inventory balance both for open orders and user's wallet.
 
 [^1]: _Display unit_ is one to which decimals are added as directed under [`cardano-token-registry`](https://github.com/cardano-foundation/cardano-token-registry).
 [^fun]: Fun fact: Ada Lovelace lived from 1815 to 1852 which corresponds to numbers (namely _coin type_ & _purpose_) given in the hierarchy path.
@@ -224,3 +236,7 @@ we are providing two simple bash scripts,
 which can be found in the [SOR repository](https://github.com/geniusyield/smart-order-router?tab=readme-ov-file#yield-accelerator-rewards).
 Both scripts require the `cardano-cli` to be installed and available in the `PATH`, and in order to claim,
 you additionally need a connection to a running Cardano node.
+
+## License
+
+[Apache-2.0](./LICENSE) © [GYELD GMBH](https://www.geniusyield.co).

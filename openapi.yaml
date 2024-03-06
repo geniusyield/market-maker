@@ -49,31 +49,37 @@ components:
       properties:
         market_id: { type: string, description: "Identifier of a market with concataned asset IDs with underscore delimiter to separate base and target.", example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
         base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovalace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
-        base_asset_ticker: { type: string, description: "Ticker of a the base cryptoasset.", example: "ADA" }
-        base_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
         target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        target_asset_ticker: { type: string, description: "Symbol of the target cryptoasset", example: "GENS" }
-        target_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
       required: [market_id, base_asset, base_asset_ticker, base_asset_decimals, target_asset, target_asset_ticker, target_asset_decimals]
       example:
         {
           market_id: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
           base_asset: "lovelace",
-          base_asset_ticker: "ADA",
-          base_asset_decimals: 6,
           target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
-          target_asset_ticket: "GENS",
-          target_asset_decimals: 6
         }
     Markets:
       type: array
       items: {$ref: '#/components/schemas/Market'}
+    Asset:
+      type: object
+      properties:
+        asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
+        asset_ticker: { type: string, description: "Ticker of a the cryptoasset.", examples: ["ADA", "GENS"] }
+        asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
+      required: [market_id, base_asset, base_asset_ticker, base_asset_decimals, target_asset, target_asset_ticker, target_asset_decimals]
+      example:
+        {
+          asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          asset_ticker: "GENS",
+          asset_decimals: 6
+        }
+    Assets:
+      type: array
+      items: {$ref: '#/components/schemas/Asset'}
     Balance:
       type: object
       properties:
-        asset: { type: string, description: "Ticker of a the cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
-        asset_ticker: { type: string, description: "Ticker of a the cryptoasset", example: "GENS"}
-        asset_decimals: { type: integer, format: int32, minimum: 0, example: 6}
+        asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"]}
         amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", example: "123456789123456789123456789" }
       required: [asset, amount]
       example:
@@ -84,10 +90,8 @@ components:
     Order:
       properties:
         base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
-        base_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6}
         base_amount: {type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units", example: "6000000" }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        batarget_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6}
         target_amount: { type: string, format: integer, description: "Transaction amount in target pair volume  in indivisible units." }
         type: { type: string, enum: ["buy", "sell"], example: "buy" }
         valid_from: {type: string, format: date, example: 1985-04-12T23:00:00.00Z }
@@ -142,10 +146,8 @@ components:
       properties:
         timestamp: { type: integer, description: "Unix timestamp in milliseconds for when the transaction occurred." }
         base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
-        base_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
         base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisibleunits." }
         target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
-        target_asset_decimals: { type: integer, format: int32, minimum: 0, example: 6 }
         target_asset_amount: { type: string, format: integer, description: "Transaction amount in target pair volume in indivisible units." }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
       required: [timestamp, base_amount, target_amount, trade_timestamp, type]
@@ -154,8 +156,8 @@ components:
       items: {$ref: '#/components/schemas/Trade'}
       example:
         [
-         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_decimals": 6, "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_decimals": 6, "target_asset_amount" : "2000000", type: "buy"},
-         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_decimals": 6, "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_decimals": 6, "target_asset_amount" : "5000000", type: "sel"},
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "2000000", type: "buy"},
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "5000000", type: "sel"},
         ]
     Price:
       type: object
@@ -191,6 +193,10 @@ paths:
     get:
       tags: [settings]
       responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Settings' }}}}}
+  /assets:
+    get:
+      tags: [assets]
+      responses: { 200: {description: successful operation, content: {application/json: {schema: {$ref: '#/components/schemas/Assets' }}}}}
   /markets:
     get:
       tags: [markets]

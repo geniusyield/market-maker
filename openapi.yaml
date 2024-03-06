@@ -103,6 +103,11 @@ components:
           asset_ticker: "GENS",
           asset_decimals: 6
         }
+      - {
+          asset: "lovelace",
+          asset_ticker: "ADA",
+          asset_decimals: 6
+        }
     Assets:
       type: array
       items: {$ref: '#/components/schemas/Asset'}

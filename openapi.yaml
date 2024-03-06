@@ -12,6 +12,19 @@ info:
     name: Genius Yield Technical Support
     url: https://www.geniusyield.co/
     email: support@geniusyield.co
+servers:
+  - url: https://{backendServerUrl}/{apiVersion}
+    description: Trading Bot API backend with environment and version
+    variables:
+      backendServerUrl:
+        default: localhost
+        description: The URI of the Trading Bot API backend.
+        enum:
+          - localhost
+          - mmb
+      apiVersion:
+        default: v1
+        description: API version number
 components:
   securitySchemes:
     ApiKeyAuth:
@@ -227,9 +240,6 @@ tags:
 # externalDocs:
 #  description: Bot API Documentation
 #  url: https://www.bot-api-docs.geniusyield.co/
-servers:
-  - url: https://localhost:4000/
-  - url: https://bot.api.geniusyield.co/
 paths:
   /settings:
     get:

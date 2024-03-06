@@ -80,9 +80,9 @@ components:
     Market:
       type: object
       properties:
-        market_id: { type: string, description: "Identifier of a market with concatenated asset IDs with underscore delimiter to separate base and target.", example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        market_id: { type: string, description: "Identifier of a market with concatenated asset IDs with underscore delimiter to separate base and target.", examples: ["lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
         base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
-        target_asset: { type: string, description: "Identifier of the target asset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        target_asset: { type: string, description: "Identifier of the target asset", examples: ["dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
       required: [market_id, base_asset, target_asset]
       examples:
       - {
@@ -113,7 +113,7 @@ components:
       type: object
       properties:
         asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"]}
-        amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", example: "123456789123456789123456789" }
+        amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", examples: ["123456789123456789123456789"] }
       required: [asset, amount]
       examples:
       - {
@@ -127,13 +127,13 @@ components:
       items: {$ref: '#/components/schemas/Balance'}
     Order:
       properties:
-        base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
-        base_amount: {type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units", example: "6000000" }
-        target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        base_asset: {type: string, description: "The base cryptoasset", examples: ["lovelace"] }
+        base_amount: {type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units", examples: ["6000000"] }
+        target_asset: {type: string, description: "The the target cryptoasset", examples: ["dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
         target_amount: { type: string, format: integer, description: "Transaction amount in target pair volume  in indivisible units." }
-        type: { type: string, enum: ["buy", "sell"], example: "buy" }
-        valid_from: {type: string, format: date-time, example: "1985-04-12T23:00:00.00Z" }
-        valid_until: {type: string, format: date-time, example: "1985-04-12T23:15:00.00Z" }
+        type: { type: string, enum: ["buy", "sell"], examples: ["buy"] }
+        valid_from: {type: string, format: date-time, examples: ["1985-04-12T23:00:00.00Z"] }
+        valid_until: {type: string, format: date-time, examples: ["1985-04-12T23:15:00.00Z"] }
       required: [base_asset, base_amount, target_asset, target_amount, type]
       examples:
       - { 
@@ -149,8 +149,8 @@ components:
     BuildTxRequestBase:
       type: object
       properties:
-        collateral_utxo: {type: string, example: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"}
-        address: {type: string, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
+        collateral_utxo: {type: string, examples: ["33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"]}
+        address: {type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"]}
       required: []
     BuildPlaceOrdersTxRequest:
       allOf:
@@ -184,10 +184,10 @@ components:
     Trade:
       type: object
       properties:
-        timestamp: { type: string , description: Trade timestamp, format: "date-time", example: "1985-04-12T23:00:00.00Z" }
-        base_asset: {type: string, description: "The base cryptoasset", example: "lovelace"  }
+        timestamp: { type: string , description: Trade timestamp, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }
+        base_asset: {type: string, description: "The base cryptoasset", examples: ["lovelace"] }
         base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units." }
-        target_asset: {type: string, description: "The the target cryptoasset", example: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53" }
+        target_asset: {type: string, description: "The the target cryptoasset", examples: ["dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
         target_asset_amount: { type: string, format: integer, description: "Transaction amount in target pair volume in indivisible units." }
         type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
       required: [timestamp, base_asset, base_asset_amount, target_asset, target_asset_amount, type]
@@ -213,8 +213,8 @@ components:
         target_open: { type: string, format: numeric, description: Target open price. }
         target_volume: { type: string, format: numeric, description: Base volume in indivisible units. }
         count: { type: integer, description: Candlestick size }
-        time_period_start: { type: string , description: "Timestamp of the start of the time period", format: "date-time", example: "1985-04-12T23:00:00.00Z" }
-        time_period_end: { type: string , description: "Timestamp of the end of the time period", format: "date-time", example: "1985-04-12T23:15:00.00Z" }
+        time_period_start: { type: string , description: "Timestamp of the start of the time period", format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }
+        time_period_end: { type: string , description: "Timestamp of the end of the time period", format: "date-time", examples: ["1985-04-12T23:15:00.00Z"] }
       required: [base_close, base_high, base_low, base_open, base_volume, target_close, target_high, target_low, target_open, target_volume, count, time_period_start, time_period_end]
     Prices:
       type: array
@@ -272,9 +272,9 @@ paths:
         500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   /orders:
     parameters:
-     - {in: query, name: market_id, required: true, schema: { type: string }, example: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"}
-     - {in: query, name: owner, required: false, schema: { type: string }, example: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"}
-     - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], example: "buy" }, example: "buy"}
+     - {in: query, name: market_id, required: true, schema: { type: string, examples: ["lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }}
+     - {in: query, name: owner, required: false, schema: { type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"] }}
+     - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], examples: ["buy"] }}
     get:
       tags: [orders]
       description: Fetch orders for a specific market, like GENS/ADA for example.
@@ -317,11 +317,11 @@ paths:
   /historical-trades:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
-     - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], example: "buy" }}
-     - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
-     - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
-     - {in: query, name: start_time, required: false, schema: { type: string, format: "date-time", example: "1996-12-19T16:39:57-08:00" }}
-     - {in: query, name: end_time, required: false, schema: { type: string, format: "date-time", example: "1996-12-19T17:39:57-08:00" }}
+     - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], examples: ["buy"] }}
+     - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
+     - {in: query, name: page, required: false, schema: { type: integer, examples: ["1"] }}
+     - {in: query, name: start_time, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+     - {in: query, name: end_time, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
     get:
       tags: [trades]
       responses:
@@ -331,12 +331,12 @@ paths:
   /historical-prices:
     parameters:
      - {in: query, name: market_id, required: true, schema: { type: string }}
-     - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], example: "30m" }}
-     - {in: query, name: from, required: false, schema: { type: string, format: "date-time", example: "1996-12-19T16:39:57-08:00" }}
-     - {in: query, name: to, required: false, schema: { type: string, format: "date-time", example: "1996-12-19T16:39:57-08:00" }}
-     - {in: query, name: limit, required: false, schema: { type: integer, example: "100" }}
+     - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], examples: ["30m"] }}
+     - {in: query, name: from, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+     - {in: query, name: to, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+     - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
      # TODO: Add paging as soon as Maestro actually supports it.
-     # - {in: query, name: page, required: false, schema: { type: integer, example: "1" }}
+     # - {in: query, name: page, required: false, schema: { type: integer, examples: ["1"] }}
      # TODO: consider adding support for passing price provider (eventually in a future version?)
      # - {in: query, name: price_source, required: false, schema: { type: string, examples: ["minswap", "taptools"] }}
      - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}

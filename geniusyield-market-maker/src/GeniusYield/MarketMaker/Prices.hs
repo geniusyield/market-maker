@@ -17,6 +17,7 @@ import           Data.Function                             ((&))
 import           Data.List                                 (find)
 import qualified Data.Map.Strict                           as M
 import           Data.Maybe                                (fromJust)
+import           Data.Ratio                                ((%))
 import           Data.Text                                 (Text, pack)
 import           Deriving.Aeson
 import           GeniusYield.GYConfig
@@ -33,7 +34,7 @@ import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
                                                             volumeLTPrice)
 import           GeniusYield.OrderBot.Types                (OrderAssetPair (..),
                                                             OrderType (..),
-                                                            Price (..),
+                                                            Price (..), invPrice,
                                                             Volume (..))
 import           GeniusYield.Providers.Common              (silenceHeadersClientError)
 import           GeniusYield.Providers.Maestro
@@ -43,6 +44,7 @@ import           GHC.TypeNats                              (SomeNat (SomeNat),
                                                             someNatVal)
 import           Maestro.Client.V1
 import           Maestro.Types.V1
+import           Servant.Client                            (ClientEnv, mkClientEnv)
 
 -- $setup
 --
@@ -58,13 +60,13 @@ data MaestroPriceException
   deriving anyclass (Exception)
 
 data MMToken = MMToken
-  { mmtAc        ∷ GYAssetClass,
-    mmtPrecision ∷ Natural
+  { mmtAc        :: GYAssetClass,
+    mmtPrecision :: Natural
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[StripPrefix "mmt", LowerFirst]] MMToken
 
-mmtLovelace ∷ MMToken
+mmtLovelace :: MMToken
 mmtLovelace = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
 
 -- TODO: Need to incorporate CIP-67.
@@ -88,19 +90,19 @@ showTokenAmount MMToken {..} amt = case someNatVal mmtPrecision of
     getTokenName (GYToken _ (GYTokenName bs)) = unpack bs  -- Using @unpack@ as @show@ on `GYTokenName` leads to superfluous double quotes.
 
 data MMTokenPair = MMTokenPair
-  { mmtpCurrency  ∷ MMToken,
-    mmtpCommodity ∷ MMToken
+  { mmtpCurrency  :: MMToken,
+    mmtpCommodity :: MMToken
   }
   deriving stock (Eq, Ord, Show)
 
-mkMMTokenPair ∷ MMToken → MMToken → MMTokenPair
+mkMMTokenPair :: MMToken -> MMToken -> MMTokenPair
 mkMMTokenPair currSt commSt =
   MMTokenPair
     { mmtpCurrency = currSt,
       mmtpCommodity = commSt
     }
 
-toOAPair ∷ MMTokenPair → OrderAssetPair
+toOAPair :: MMTokenPair -> OrderAssetPair
 toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
   OAssetPair
     { currencyAsset = mmtAc mmtpCurrency,
@@ -108,47 +110,56 @@ toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
     }
 
 data MaestroPairOverride = MaestroPairOverride
-  { mpoPair             ∷ !String,
-    mpoCommodityIsFirst ∷ !Bool
+  { mpoPair             :: !String,
+    mpoCommodityIsFirst :: !Bool
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
 data PriceConfig = PriceConfig
-  { pcApiKey     ∷ !(Confidential Text),
-    pcResolution ∷ !Resolution,
-    pcNetworkId  ∷ !GYNetworkId,
-    pcDex        ∷ !Dex,
-    pcOverride   ∷ !(Maybe MaestroPairOverride)
+  { pcApiKey     :: !(Confidential Text),
+    pcResolution :: !Resolution,
+    pcNetworkId  :: !GYNetworkId,
+    pcDex        :: !Dex,
+    pcOverride   :: !(Maybe MaestroPairOverride),
+    pcTaptoolsApiKey             :: !(Confidential Text),
+    pcTaptoolsResolutionOverride :: !(Maybe TtResolution)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 
 data MaestroPP = MaestroPP
-  { mppEnv        ∷ !(MaestroEnv 'V1),
-    mppResolution ∷ !Resolution,
-    mppDex        ∷ !Dex,
-    mppOverride   ∷ !(Maybe MaestroPairOverride)
+  { mppEnv        :: !(MaestroEnv 'V1),
+    mppResolution :: !Resolution,
+    mppDex        :: !Dex,
+    mppOverride   :: !(Maybe MaestroPairOverride)
+  }
+
+data TaptoolsPP = TaptoolsPP
+  { ttppEnv        :: !ClientEnv,
+    ttppResolution :: !TtResolution
   }
 
 data PricesProviders = PP
-  { maestroPP   ∷ !MaestroPP,
-    orderBookPP ∷ !(Connection, DEXInfo)
+  { maestroPP   :: !MaestroPP,
+    taptoolsPP  :: !TaptoolsPP,
+    orderBookPP :: !(Connection, DEXInfo)
   }
 
 buildPP
-  ∷ Connection
-  → DEXInfo
-  → PriceConfig
-  → IO PricesProviders
+  :: Connection
+  -> DEXInfo
+  -> PriceConfig
+  -> IO PricesProviders
 buildPP c dex PriceConfig {..} =
   PP
     <$> ppMaestro
+    <*> ppTaptools
     <*> return (c, dex)
  where
-  ppMaestro ∷ IO MaestroPP
+  ppMaestro :: IO MaestroPP
   ppMaestro = do
-    env ← networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
+    env <- networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
     return
       MaestroPP
         { mppEnv = env,
@@ -157,83 +168,93 @@ buildPP c dex PriceConfig {..} =
           mppOverride = pcOverride
         }
 
+  ppTaptools :: IO TaptoolsPP
+  ppTaptools = do
+    manager' <- taptoolsManager pcTaptoolsApiKey
+    let env = mkClientEnv manager' taptoolsBaseUrl
+    return
+      TaptoolsPP
+        { ttppEnv = env,
+          ttppResolution = maybe (fromResolution pcResolution) id pcTaptoolsResolutionOverride
+        }
+
 {-
     It contains: * Total sell volume in commodity asset
                  * Total buy volume in commodity asset
 
 -}
 data OBMarketTokenInfo = OBMarketTokenInfo
-  { mtSellVol ∷ !Natural,
-    mtBuyVol  ∷ !Natural
+  { mtSellVol :: !Natural,
+    mtBuyVol  :: !Natural
   }
   deriving stock (Show)
 
 type OBMarketInfo = M.Map MMTokenPair OBMarketTokenInfo
 
 mkOBMarketTokenInfo
-  ∷ Price
-  → Rational
-  → Orders 'SellOrder
-  → Orders 'BuyOrder
-  → OBMarketTokenInfo
+  :: Price
+  -> Rational
+  -> Orders 'SellOrder
+  -> Orders 'BuyOrder
+  -> OBMarketTokenInfo
 mkOBMarketTokenInfo (Price marketPrice) spread sellOrders buyOrders =
   OBMarketTokenInfo
     { mtSellVol = volumeMax sumVolSell,
       mtBuyVol = floor $ toRational (volumeMax sumVolBuy) * marketPrice
     }
  where
-  sumVolSell ∷ Volume
+  sumVolSell :: Volume
   sumVolSell = volumeLTPrice (Price (marketPrice + (marketPrice * spread))) sellOrders
 
-  sumVolBuy ∷ Volume
+  sumVolBuy :: Volume
   sumVolBuy = volumeGTPrice (Price (marketPrice - (marketPrice * spread))) buyOrders
 
 getOrderBookPrices
-  ∷ PricesProviders
-  → [MMTokenPair]
-  → Price
-  → Rational
-  → IO (OBMarketInfo, MultiAssetOrderBook)
+  :: PricesProviders
+  -> [MMTokenPair]
+  -> Price
+  -> Rational
+  -> IO (OBMarketInfo, MultiAssetOrderBook)
 getOrderBookPrices PP {orderBookPP = (c, dex)} mmts price priceCheckSpread = do
-  maOrderBook ← populateOrderBook c dex (dexPORefs dex) (map toOAPair mmts)
+  maOrderBook <- populateOrderBook c dex (dexPORefs dex) (map toOAPair mmts)
   return (M.fromList $ map buildPrice $ maOrderBookToList maOrderBook, maOrderBook)
  where
-  buildPrice ∷ (OrderAssetPair, OrderBook) → (MMTokenPair, OBMarketTokenInfo)
+  buildPrice :: (OrderAssetPair, OrderBook) -> (MMTokenPair, OBMarketTokenInfo)
   buildPrice (oap, ob) =
     let mmtPair = toMMTPair oap
         sndElement = uncurry (mkOBMarketTokenInfo price priceCheckSpread) . (sellOrders &&& buyOrders) $ ob
      in (mmtPair, sndElement)
 
-  toMMTPair ∷ OrderAssetPair → MMTokenPair
+  toMMTPair :: OrderAssetPair -> MMTokenPair
   toMMTPair OAssetPair {currencyAsset, commodityAsset} =
-    find (\MMTokenPair {..} → mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) mmts
+    find (\MMTokenPair {..} -> mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) mmts
       & fromJust
 
 -- | Remove headers (if `MaestroError` contains `ClientError`).
-silenceHeadersMaestroClientError ∷ MaestroError → MaestroError
+silenceHeadersMaestroClientError :: MaestroError -> MaestroError
 silenceHeadersMaestroClientError (ServantClientError e) = ServantClientError $ silenceHeadersClientError e
 silenceHeadersMaestroClientError other = other
 
-throwMspvApiError ∷ Text → MaestroError → IO a
+throwMspvApiError :: Text -> MaestroError -> IO a
 throwMspvApiError locationInfo =
   throwIO . MaestroApiError locationInfo . silenceHeadersMaestroClientError
 
 -- | Utility function to handle Maestro errors, which also removes header (if present) so as to conceal API key.
-handleMaestroError ∷ Text → Either MaestroError a → IO a
+handleMaestroError :: Text -> Either MaestroError a -> IO a
 handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
 getMaestroPrice
-  ∷ PricesProviders
-  → MMTokenPair
-  → IO Price
+  :: PricesProviders
+  -> MMTokenPair
+  -> IO Price
 getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
-  (pairName, commodityIsA) ← case mppOverride of
+  (pairName, commodityIsA) <- case mppOverride of
     -- We have to override with given details.
-    Just (MaestroPairOverride {..}) → do
+    Just (MaestroPairOverride {..}) -> do
       pure (pack mpoPair, mpoCommodityIsFirst)
     -- We are given commodity token and need to find pair name.
-    Nothing → do
-      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
+    Nothing -> do
+      allDexPairs <- dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
 
       let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
@@ -241,7 +262,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
+  ohlInfo <- handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
 
   let info = head ohlInfo
       curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
@@ -257,7 +278,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
 
   return $ Price (toRational adjustedPrice)
  where
-  isRelevantPairInfo ∷ DexPairInfo → Maybe (DexPairInfo, Bool)
+  isRelevantPairInfo :: DexPairInfo -> Maybe (DexPairInfo, Bool)
   isRelevantPairInfo dpi@DexPairInfo {..} =
     ( (dpi, False)
         <$ findMatchingMMTP
@@ -270,10 +291,33 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
                 (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
           )
 
-  findMatchingMMTP ∷ (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+  findMatchingMMTP :: (TokenName, PolicyId) -> (TokenName, PolicyId) -> Maybe MMTokenPair
   findMatchingMMTP tokenA tokenB = fromRight Nothing $ do
-    assetClassA ← assetClassFromMaestro tokenA
-    assetClassB ← assetClassFromMaestro tokenB
+    assetClassA <- assetClassFromMaestro tokenA
+    assetClassB <- assetClassFromMaestro tokenB
     Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
   functionLocationIdent = "getMaestroPrice"
+
+getTaptoolsPrice :: PricesProviders -> MMTokenPair -> IO Price
+getTaptoolsPrice PP {taptoolsPP = TaptoolsPP {..}} mmtp
+  | mmtpCurrency mmtp  == mmtLovelace = getAssetPrice . mmtAc . mmtpCommodity $ mmtp
+
+  | mmtpCommodity mmtp == mmtLovelace = do
+      currencyPrice <- getAssetPrice . mmtAc . mmtpCurrency $ mmtp 
+      return $ invPrice currencyPrice
+
+  | otherwise = return mempty  --ToDo: What to do when the traiding pair does not involve ADA?
+
+  where
+    getAssetPrice :: GYAssetClass -> IO Price
+    getAssetPrice gyAsset = case gyAsset of
+        GYLovelace   -> return $ Price (1 % 1)
+        GYToken cs _ -> do
+          let ttUnit     = show cs
+              ttInterval = show ttppResolution
+          ohlcvInfo <- priceFromTaptools (Just ttUnit) (Just ttInterval) (Just 1) ttppEnv
+          case ohlcvInfo of
+            Left e         -> throwIO e
+            Right ttOHLCVs -> return (Price . toRational . close . head $ ttOHLCVs)
+

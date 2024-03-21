@@ -25,11 +25,16 @@ common common-deps
     , containers
     , filepath
     , geniusyield-orderbot-framework:common
+    , http-client ^>=0.7.13.1
+    , http-client-tls ^>=0.3.6.1
     , mtl
     , mwc-random
     , serialise
+    , servant ^>=0.19.1
+    , servant-client ^>=0.19
     , split
     , text
+    , time ^>=1.11.1.1
     , yaml
 
 common common-lang

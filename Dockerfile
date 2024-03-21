@@ -51,7 +51,7 @@ COPY geniusyield-orderbot-framework/geniusyield-orderbot-framework.cabal geniusy
 COPY geniusyield-market-maker/geniusyield-market-maker.cabal geniusyield-market-maker/
 
 RUN cabal update
-RUN cabal build geniusyield-dex-api --only-dependencies
+RUN cabal install geniusyield-dex-api --only-dependencies
 
 COPY . .
 

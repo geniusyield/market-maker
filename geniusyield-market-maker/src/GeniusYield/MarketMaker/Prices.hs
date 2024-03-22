@@ -234,10 +234,18 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
     -- We are given commodity token and need to find pair name.
     Nothing → do
       allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
-
+      -- TODO: Remove it once Maestro is able to return for it.
+      let adaUsdmPair =
+            DexPairInfo
+              { dexPairInfoCoinBPolicy = "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad",
+                dexPairInfoCoinBAssetName = "0014df105553444d",
+                dexPairInfoCoinAPolicy = "",
+                dexPairInfoCoinAAssetName = "",
+                dexPairInfoPair = "ADA-USDM"
+              }
       let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
-      first dexPairInfoPair <$> go allDexPairs
+      first dexPairInfoPair <$> go (adaUsdmPair : allDexPairs)
 
   let pair = TaggedText pairName
 

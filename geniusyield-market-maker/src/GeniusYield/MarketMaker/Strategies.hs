@@ -1,7 +1,22 @@
-module GeniusYield.MarketMaker.Strategies where
+module GeniusYield.MarketMaker.Strategies
+  ( UserActions (..)
+  , uaFromOnlyPlaces
+  , uaFromOnlyCancels
+  , PlaceOrderAction (..)
+  , CancelOrderAction (..)
+  , Strategy
+  , PreemptiveCancelSpreadRatio
+  , mkPreemptiveCancelSpreadRatio
+  , unPreemptiveCancelSpreadRatio
+  , StrategyConfig (..)
+  , TokenVol (..)
+  , getOwnOrders
+  , fixedSpreadVsMarketPriceStrategy
+  ) where
 
 import           Control.Applicative                       ((<|>))
 import           Control.Monad                             (unless)
+import           Data.Aeson                                (FromJSON (..))
 import           Data.Foldable
 import           Data.Function                             ((&))
 import           Data.Functor                              ((<&>))
@@ -19,7 +34,7 @@ import           GeniusYield.AnnSet.Internal               (orderInfo,
                                                             toAscList)
 import           GeniusYield.Api.Dex.PartialOrder          (PartialOrderInfo (..),
                                                             poiGetContainedFeeValue)
-import           GeniusYield.Imports                       (printf)
+import           GeniusYield.Imports                       (coerce, printf)
 import           GeniusYield.MarketMaker.Constants         (logNS,
                                                             makerFeeRatio)
 import           GeniusYield.MarketMaker.Equity
@@ -36,6 +51,9 @@ import           GeniusYield.TxBuilder                     (GYTxQueryMonad (utxo
                                                             runGYTxQueryMonadNode)
 import           GeniusYield.Types
 import           GHC.Natural                               (naturalFromInteger)
+
+-- $setup
+-- >>> import qualified Data.Aeson as Aeson
 
 data UserActions = UserActions
   { uaPlaces  :: [PlaceOrderAction],
@@ -76,12 +94,39 @@ newtype CancelOrderAction = CancelOrderAction {coaPoi :: PartialOrderInfo}
 
 type Strategy = PricesProviders -> User -> MMToken -> IO UserActions
 
+newtype PreemptiveCancelSpreadRatio = PreemptiveCancelSpreadRatio { unPreemptiveCancelSpreadRatio :: Rational }
+  deriving stock Show
+  deriving newtype (ToJSON, Num, Eq, Ord)
+
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": 101, \"denominator\": 100}"
+-- Left "Error in $: sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
+--
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": 100, \"denominator\": 100}"
+-- Right (PreemptiveCancelSpreadRatio {unPreemptiveCancelSpreadRatio = 1 % 1})
+--
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": -1, \"denominator\": 100}"
+-- Left "Error in $: sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
+--
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": 0, \"denominator\": 100}"
+-- Right (PreemptiveCancelSpreadRatio {unPreemptiveCancelSpreadRatio = 0 % 1})
+instance FromJSON PreemptiveCancelSpreadRatio where
+  parseJSON v = do
+    v' :: Rational <- parseJSON v
+    case mkPreemptiveCancelSpreadRatio v' of
+      Left s  -> fail s
+      Right a -> pure a
+
+mkPreemptiveCancelSpreadRatio :: Rational -> Either String PreemptiveCancelSpreadRatio
+mkPreemptiveCancelSpreadRatio n =
+  if n >= 0 && n <= 1 then Right $ coerce n
+  else Left "sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
+
 data StrategyConfig = StrategyConfig
-  { scSpread                 :: !Rational,
-    scPriceCheckProduct      :: !Integer,
-    scCancelThresholdProduct :: !Integer,
-    scTokenVolume            :: !TokenVol,
-    scCancelWindowRatio      :: !(Maybe Rational)
+  { scSpread                      :: !Rational,
+    scPriceCheckProduct           :: !Integer,
+    scCancelThresholdProduct      :: !Integer,
+    scTokenVolume                 :: !TokenVol,
+    scPreemptiveCancelSpreadRatio :: !(Maybe PreemptiveCancelSpreadRatio)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] StrategyConfig
@@ -165,11 +210,11 @@ fixedSpreadVsMarketPriceStrategy
 
         ordersToCancel =
           let mp' = getPrice mp
-              scCancelWindowRatio' = fromMaybe 0 scCancelWindowRatio
+              scPreemptiveCancelSpreadRatio' = unPreemptiveCancelSpreadRatio $ fromMaybe 0 scPreemptiveCancelSpreadRatio
               priceCrosses (toOAPair -> oap, poi) =
                 case mkOrderInfo oap poi of
-                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price * (1 - scCancelWindowRatio') <= mp'
-                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price * (1 + scCancelWindowRatio') >= mp'
+                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price <= mp' * (1 + scSpread * scPreemptiveCancelSpreadRatio')
+                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price >= mp' * (1 - scSpread * scPreemptiveCancelSpreadRatio')
           in
             nub $
                  -- Cancel placed orders which are crossed by market price.

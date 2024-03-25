@@ -10,7 +10,7 @@ import           Control.Exception                         (Exception, throwIO,
 import           Control.Monad                             ((<=<))
 import           Data.ByteString.Char8                     (unpack)
 import           Data.Coerce                               (coerce)
-import           Data.Either                               (fromRight)
+import           Data.Either                               (fromRight, rights)
 import           Data.Fixed                                (Fixed (..),
                                                             showFixed)
 import           Data.Function                             ((&))
@@ -60,30 +60,30 @@ import           Servant.Client                            (mkClientEnv)
 -------------------------------------------------------------------------------
 
 data PriceConfigV2 = PriceConfigV2
-  { pcPriceCommonCfg     ∷ !PriceCommonCfg,
-    pcPricesProviderCfgs ∷ !(NE.NonEmpty PricesProviderCfg)
+  { pcPriceCommonCfg     :: !PriceCommonCfg,
+    pcPricesProviderCfgs :: !(NE.NonEmpty PricesProviderCfg)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
 
 data PriceCommonCfg = PriceCommonCfg
-  { pccCommonResolution   ∷ !CommonResolution,
-    pccNetworkId          ∷ !GYNetworkId,
-    pccPriceDiffThreshold ∷ !Double
+  { pccCommonResolution   :: !CommonResolution,
+    pccNetworkId          :: !GYNetworkId,
+    pccPriceDiffThreshold :: !Double
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
 
 data PricesProviderCfg =
     MaestroConfig
-  { mcApiKey             ∷ !(Confidential Text),
-    mcResolutionOverride ∷ !(Maybe Maestro.Resolution),
-    mcDex                ∷ !Dex,
-    mcPairOverride       ∷ !(Maybe MaestroPairOverride)
+  { mcApiKey             :: !(Confidential Text),
+    mcResolutionOverride :: !(Maybe Maestro.Resolution),
+    mcDex                :: !Dex,
+    mcPairOverride       :: !(Maybe MaestroPairOverride)
   }
   | TaptoolsConfig
-  { ttcApiKey             ∷ !(Confidential Text),
-    ttcResolutionOverride ∷ !(Maybe TtResolution)
+  { ttcApiKey             :: !(Confidential Text),
+    ttcResolutionOverride :: !(Maybe TtResolution)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PricesProviderCfg
@@ -94,15 +94,15 @@ data PricesProviderCfg =
 -------------------------------------------------------------------------------
 
 data MMToken = MMToken
-  { mmtAc        ∷ GYAssetClass,
-    mmtPrecision ∷ Natural
+  { mmtAc        :: GYAssetClass,
+    mmtPrecision :: Natural
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[StripPrefix "mmt", LowerFirst]] MMToken
 
 data MMTokenPair = MMTokenPair
-  { mmtpCurrency  ∷ MMToken,
-    mmtpCommodity ∷ MMToken
+  { mmtpCurrency  :: MMToken,
+    mmtpCommodity :: MMToken
   }
   deriving stock (Eq, Ord, Show)
 
@@ -113,29 +113,29 @@ data MaestroPriceException
   deriving anyclass (Exception)
 
 data MaestroPairOverride = MaestroPairOverride
-  { mpoPair             ∷ !String,
-    mpoCommodityIsFirst ∷ !Bool
+  { mpoPair             :: !String,
+    mpoCommodityIsFirst :: !Bool
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
 data PriceError = PriceUnavailable | PriceIsZero | PriceMismatch
 
-newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO Price }
+newtype GetQuota = GetQuota { getQuota :: MMTokenPair -> IO (Either PriceError Price) }
 
-buildGetQuota ∷ PriceCommonCfg → PricesProviderCfg → GetQuota
+buildGetQuota :: PriceCommonCfg -> PricesProviderCfg -> GetQuota
 
-buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
-  env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
-  res ← maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
+buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp -> do
+  env <- networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
+  res <- maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
 
-  (pairName, commodityIsA) ← case mcPairOverride of
+  (pairName, commodityIsA) <- case mcPairOverride of
     -- We have to override with given details.
-    Just (MaestroPairOverride {..}) → do
+    Just (MaestroPairOverride {..}) -> do
       pure (pack mpoPair, mpoCommodityIsFirst)
     -- We are given commodity token and need to find pair name.
-    Nothing → do
-      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
+    Nothing -> do
+      allDexPairs <- dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
 
       let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo mmtp dpi
@@ -143,11 +143,11 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
+  ohlInfo <- handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
 
   let info = head ohlInfo
-      curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
-      comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
+      curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
+      comPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
       precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
 
       price =
@@ -157,10 +157,10 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
 
       adjustedPrice = price * precisionDiff
 
-  return $ Price (toRational adjustedPrice)
+  return . Right $ Price (toRational adjustedPrice)
 
   where
-    isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
+    isRelevantPairInfo :: MMTokenPair -> DexPairInfo -> Maybe (DexPairInfo, Bool)
     isRelevantPairInfo mmtp dpi@DexPairInfo {..} =
       ( (dpi, False)
           <$ findMatchingMMTP mmtp
@@ -173,62 +173,69 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
                   (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
             )
 
-    findMatchingMMTP ∷ MMTokenPair → (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+    findMatchingMMTP :: MMTokenPair -> (TokenName, PolicyId) -> (TokenName, PolicyId) -> Maybe MMTokenPair
     findMatchingMMTP mmtp tokenA tokenB = fromRight Nothing $ do
-      assetClassA ← assetClassFromMaestro tokenA
-      assetClassB ← assetClassFromMaestro tokenB
+      assetClassA <- assetClassFromMaestro tokenA
+      assetClassB <- assetClassFromMaestro tokenB
       Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
     functionLocationIdent = "getMaestroPrice"
     
-buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → do
-  if pccNetworkId /= GYMainnet then throwIO $ userError "Taptools prices provider only supports Mainnet." else return ()
-  manager' ← taptoolsManager ttcApiKey
-  let env = mkClientEnv manager' taptoolsBaseUrl
+buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp -> case pccNetworkId of
+  GYMainnet -> do
+    manager' <- taptoolsManager ttcApiKey
+    let env = mkClientEnv manager' taptoolsBaseUrl
 
-  res ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
+    res <- maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
 
-  let priceFromTokenPair
-        | mmtpCurrency mmtp  == mmtLovelace = getAssetPrice . mmtAc . mmtpCommodity $ mmtp
-        | mmtpCommodity mmtp == mmtLovelace = do
-            currencyPrice ← getAssetPrice . mmtAc . mmtpCurrency $ mmtp 
-            return $ invPrice currencyPrice
-        | otherwise = throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
-        where
-          getAssetPrice ∷ GYAssetClass → IO Price
-          getAssetPrice gyAsset = case gyAsset of
-              GYLovelace   → return $ Price (1 % 1)
-              GYToken cs _ → do
-                let unit     = show cs
-                    interval = show res
-                ohlcvInfo ← priceFromTaptools (Just unit) (Just interval) (Just 1) env
-                case ohlcvInfo of
-                  Left e         → throwIO e
-                  Right ttOHLCVs → return (Price . toRational . close . head $ ttOHLCVs)
-  priceFromTokenPair
+    let priceFromTokenPair
+          | mmtpCurrency mmtp  == mmtLovelace = getAssetPrice . mmtAc . mmtpCommodity $ mmtp
+          | mmtpCommodity mmtp == mmtLovelace = do
+              currencyPrice <- getAssetPrice . mmtAc . mmtpCurrency $ mmtp 
+              return $ invPrice currencyPrice
+          | otherwise = throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
+          where
+            getAssetPrice :: GYAssetClass -> IO Price
+            getAssetPrice gyAsset = case gyAsset of
+                GYLovelace   -> return $ Price (1 % 1)
+                GYToken cs _ -> do
+                  let unit     = show cs
+                      interval = show res
+                  ohlcvInfo <- priceFromTaptools (Just unit) (Just interval) (Just 1) env
+                  case ohlcvInfo of
+                    Left e         -> throwIO e
+                    Right ttOHLCVs -> return (Price . toRational . close . head $ ttOHLCVs)
+                    
+    p <- priceFromTokenPair
+    if getPrice p == 0 then return . Left  $ PriceIsZero
+                       else return . Right $ p
 
-buildGetQuotas ∷ PriceConfigV2 → [GetQuota]
+  _         -> return . Left $ PriceUnavailable
+
+buildGetQuotas :: PriceConfigV2 -> [GetQuota]
 buildGetQuotas PriceConfigV2 {..} = buildGetQuota pcPriceCommonCfg <$> NE.toList pcPricesProviderCfgs
 
-priceEstimate ∷ PriceConfigV2 → MMTokenPair → IO (Either PriceError Price)
+priceEstimate :: PriceConfigV2 -> MMTokenPair -> IO (Either PriceError Price)
 priceEstimate pc@PriceConfigV2 {..} mmtp = do
   let providers = buildGetQuotas pc
-  ps ← mapM (\prov → getQuota prov mmtp) providers
+  eps <- mapM (\prov -> getQuota prov mmtp) providers
   
-  let p   = Price . mean $ getPrice <$> ps
-      rsd = relStdDev $ fromRational . getPrice <$> ps
-      ths = pccPriceDiffThreshold pcPriceCommonCfg
-
-  if rsd > ths
-    then return . Left $ PriceMismatch
-    else return . Right $ p
+  case rights eps of
+    []   -> throwIO $ userError "Price not available from any provider."
+    ps -> do
+      let p   = Price . mean $ getPrice <$> ps
+          rsd = relStdDev $ fromRational . getPrice <$> ps
+          ths = pccPriceDiffThreshold pcPriceCommonCfg
+      if rsd > ths
+        then return . Left $ PriceMismatch
+        else return . Right $ p
 
 
 -------------------------------------------------------------------------------
 -- Order Book Prices and other Helper Functions
 -------------------------------------------------------------------------------
 
-mmtLovelace ∷ MMToken
+mmtLovelace :: MMToken
 mmtLovelace = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
 
 -- TODO: Need to incorporate CIP-67.
@@ -242,23 +249,23 @@ mmtLovelace = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
 --
 -- >>> showTokenAmount (MMToken frenAC 0) 1_000_000
 -- "1000000.0 FREN"
-showTokenAmount ∷ MMToken → Integer → String
+showTokenAmount :: MMToken -> Integer -> String
 showTokenAmount MMToken {..} amt = case someNatVal mmtPrecision of
-  SomeNat (_ ∷ Proxy n) ->
-    let fx ∷ Fixed (10 ^ n) = MkFixed amt
+  SomeNat (_ :: Proxy n) ->
+    let fx :: Fixed (10 ^ n) = MkFixed amt
     in showFixed False fx <> " " <> getTokenName mmtAc
   where
     getTokenName GYLovelace                   = "ADA"
     getTokenName (GYToken _ (GYTokenName bs)) = unpack bs  -- Using @unpack@ as @show@ on `GYTokenName` leads to superfluous double quotes.
 
-mkMMTokenPair ∷ MMToken → MMToken → MMTokenPair
+mkMMTokenPair :: MMToken -> MMToken -> MMTokenPair
 mkMMTokenPair currSt commSt =
   MMTokenPair
     { mmtpCurrency = currSt,
       mmtpCommodity = commSt
     }
 
-toOAPair ∷ MMTokenPair → OrderAssetPair
+toOAPair :: MMTokenPair -> OrderAssetPair
 toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
   OAssetPair
     { currencyAsset = mmtAc mmtpCurrency,
@@ -271,63 +278,63 @@ toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
 
 -}
 data OBMarketTokenInfo = OBMarketTokenInfo
-  { mtSellVol ∷ !Natural,
-    mtBuyVol  ∷ !Natural
+  { mtSellVol :: !Natural,
+    mtBuyVol  :: !Natural
   }
   deriving stock (Show)
 
 type OBMarketInfo = M.Map MMTokenPair OBMarketTokenInfo
 
 mkOBMarketTokenInfo
-  ∷ Price
-  → Rational
-  → Orders 'SellOrder
-  → Orders 'BuyOrder
-  → OBMarketTokenInfo
+  :: Price
+  -> Rational
+  -> Orders 'SellOrder
+  -> Orders 'BuyOrder
+  -> OBMarketTokenInfo
 mkOBMarketTokenInfo (Price marketPrice) spread sellOrders buyOrders =
   OBMarketTokenInfo
     { mtSellVol = volumeMax sumVolSell,
       mtBuyVol = floor $ toRational (volumeMax sumVolBuy) * marketPrice
     }
  where
-  sumVolSell ∷ Volume
+  sumVolSell :: Volume
   sumVolSell = volumeLTPrice (Price (marketPrice + (marketPrice * spread))) sellOrders
 
-  sumVolBuy ∷ Volume
+  sumVolBuy :: Volume
   sumVolBuy = volumeGTPrice (Price (marketPrice - (marketPrice * spread))) buyOrders
 
 getOrderBookPrices
-  ∷ PricesProviders
-  → [MMTokenPair]
-  → Price
-  → Rational
-  → IO (OBMarketInfo, MultiAssetOrderBook)
+  :: PricesProviders
+  -> [MMTokenPair]
+  -> Price
+  -> Rational
+  -> IO (OBMarketInfo, MultiAssetOrderBook)
 getOrderBookPrices PP {orderBookPP = (c, dex)} mmts price priceCheckSpread = do
-  maOrderBook ← populateOrderBook c dex (dexPORefs dex) (map toOAPair mmts)
+  maOrderBook <- populateOrderBook c dex (dexPORefs dex) (map toOAPair mmts)
   return (M.fromList $ map buildPrice $ maOrderBookToList maOrderBook, maOrderBook)
  where
-  buildPrice ∷ (OrderAssetPair, OrderBook) → (MMTokenPair, OBMarketTokenInfo)
+  buildPrice :: (OrderAssetPair, OrderBook) -> (MMTokenPair, OBMarketTokenInfo)
   buildPrice (oap, ob) =
     let mmtPair = toMMTPair oap
         sndElement = uncurry (mkOBMarketTokenInfo price priceCheckSpread) . (sellOrders &&& buyOrders) $ ob
      in (mmtPair, sndElement)
 
-  toMMTPair ∷ OrderAssetPair → MMTokenPair
+  toMMTPair :: OrderAssetPair -> MMTokenPair
   toMMTPair OAssetPair {currencyAsset, commodityAsset} =
-    find (\MMTokenPair {..} → mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) mmts
+    find (\MMTokenPair {..} -> mmtAc mmtpCurrency == currencyAsset && mmtAc mmtpCommodity == commodityAsset) mmts
       & fromJust
 
 -- | Remove headers (if `MaestroError` contains `ClientError`).
-silenceHeadersMaestroClientError ∷ MaestroError → MaestroError
+silenceHeadersMaestroClientError :: MaestroError -> MaestroError
 silenceHeadersMaestroClientError (ServantClientError e) = ServantClientError $ silenceHeadersClientError e
 silenceHeadersMaestroClientError other = other
 
-throwMspvApiError ∷ Text → MaestroError → IO a
+throwMspvApiError :: Text -> MaestroError -> IO a
 throwMspvApiError locationInfo =
   throwIO . MaestroApiError locationInfo . silenceHeadersMaestroClientError
 
 -- | Utility function to handle Maestro errors, which also removes header (if present) so as to conceal API key.
-handleMaestroError ∷ Text → Either MaestroError a → IO a
+handleMaestroError :: Text -> Either MaestroError a -> IO a
 handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
 
@@ -336,40 +343,40 @@ handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 -------------------------------------------------------------------------------
 
 data PriceConfig = PriceConfig
-  { pcApiKey     ∷ !(Confidential Text),
-    pcResolution ∷ !Resolution,
-    pcNetworkId  ∷ !GYNetworkId,
-    pcDex        ∷ !Dex,
-    pcOverride   ∷ !(Maybe MaestroPairOverride)
+  { pcApiKey     :: !(Confidential Text),
+    pcResolution :: !Resolution,
+    pcNetworkId  :: !GYNetworkId,
+    pcDex        :: !Dex,
+    pcOverride   :: !(Maybe MaestroPairOverride)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 
 data MaestroPP = MaestroPP
-  { mppEnv        ∷ !(MaestroEnv 'V1),
-    mppResolution ∷ !Resolution,
-    mppDex        ∷ !Dex,
-    mppOverride   ∷ !(Maybe MaestroPairOverride)
+  { mppEnv        :: !(MaestroEnv 'V1),
+    mppResolution :: !Resolution,
+    mppDex        :: !Dex,
+    mppOverride   :: !(Maybe MaestroPairOverride)
   }
 
 data PricesProviders = PP
-  { maestroPP   ∷ !MaestroPP,
-    orderBookPP ∷ !(Connection, DEXInfo)
+  { maestroPP   :: !MaestroPP,
+    orderBookPP :: !(Connection, DEXInfo)
   }
 
 buildPP
-  ∷ Connection
-  → DEXInfo
-  → PriceConfig
-  → IO PricesProviders
+  :: Connection
+  -> DEXInfo
+  -> PriceConfig
+  -> IO PricesProviders
 buildPP c dex PriceConfig {..} =
   PP
     <$> ppMaestro
     <*> return (c, dex)
  where
-  ppMaestro ∷ IO MaestroPP
+  ppMaestro :: IO MaestroPP
   ppMaestro = do
-    env ← networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
+    env <- networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
     return
       MaestroPP
         { mppEnv = env,
@@ -380,17 +387,17 @@ buildPP c dex PriceConfig {..} =
 
 --ToDo:  Write in terms of 'buildGetQuota PriceCommonCfg {..} MaestroConfig {..}' to avoid code duplication.
 getMaestroPrice
-  ∷ PricesProviders
-  → MMTokenPair
-  → IO Price
+  :: PricesProviders
+  -> MMTokenPair
+  -> IO Price
 getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
-  (pairName, commodityIsA) ← case mppOverride of
+  (pairName, commodityIsA) <- case mppOverride of
     -- We have to override with given details.
-    Just (MaestroPairOverride {..}) → do
+    Just (MaestroPairOverride {..}) -> do
       pure (pack mpoPair, mpoCommodityIsFirst)
     -- We are given commodity token and need to find pair name.
-    Nothing → do
-      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
+    Nothing -> do
+      allDexPairs <- dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
 
       let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
@@ -398,11 +405,11 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
+  ohlInfo <- handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
 
   let info = head ohlInfo
-      curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
-      comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
+      curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
+      comPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
       precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
 
       price =
@@ -414,7 +421,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
 
   return $ Price (toRational adjustedPrice)
  where
-  isRelevantPairInfo ∷ DexPairInfo → Maybe (DexPairInfo, Bool)
+  isRelevantPairInfo :: DexPairInfo -> Maybe (DexPairInfo, Bool)
   isRelevantPairInfo dpi@DexPairInfo {..} =
     ( (dpi, False)
         <$ findMatchingMMTP
@@ -427,10 +434,10 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
                 (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
           )
 
-  findMatchingMMTP ∷ (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+  findMatchingMMTP :: (TokenName, PolicyId) -> (TokenName, PolicyId) -> Maybe MMTokenPair
   findMatchingMMTP tokenA tokenB = fromRight Nothing $ do
-    assetClassA ← assetClassFromMaestro tokenA
-    assetClassB ← assetClassFromMaestro tokenB
+    assetClassA <- assetClassFromMaestro tokenA
+    assetClassB <- assetClassFromMaestro tokenB
     Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
   functionLocationIdent = "getMaestroPrice"

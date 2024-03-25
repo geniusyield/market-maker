@@ -407,10 +407,9 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
                 dexPairInfoCoinAAssetName = "",
                 dexPairInfoPair = "ADA-USDM"
               }
-
       let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
-      first dexPairInfoPair <$> go allDexPairs
+      first dexPairInfoPair <$> go (adaUsdmPair : allDexPairs)
 
   let pair = TaggedText pairName
 

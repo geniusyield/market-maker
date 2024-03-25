@@ -15,6 +15,7 @@ import           Data.Fixed                                (Fixed (..),
                                                             showFixed)
 import           Data.Function                             ((&))
 import           Data.List                                 (find)
+import qualified Data.List.NonEmpty                        as NE
 import qualified Data.Map.Strict                           as M
 import           Data.Maybe                                (fromJust)
 import           Data.Ratio                                ((%))
@@ -43,8 +44,8 @@ import           GHC.TypeLits                              (type (^))
 import           GHC.TypeNats                              (SomeNat (SomeNat),
                                                             someNatVal)
 import           Maestro.Client.V1
-import           Maestro.Types.V1
-import           Servant.Client                            (ClientEnv, mkClientEnv)
+import           Maestro.Types.V1                          as Maestro
+import           Servant.Client                            (mkClientEnv)
 
 -- $setup
 --
@@ -53,11 +54,44 @@ import           Servant.Client                            (ClientEnv, mkClientE
 -- >>> let gensAC = "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"
 -- >>> let frenAC = "fc11a9ef431f81b837736be5f53e4da29b9469c983d07f321262ce61.4652454e"
 
-data MaestroPriceException
-  = MaestroPairNotFound
-  | MaestroApiError !Text !MaestroError
-  deriving stock (Show)
-  deriving anyclass (Exception)
+
+-------------------------------------------------------------------------------
+-- Configuration
+-------------------------------------------------------------------------------
+
+data PriceConfigV2 = PriceConfigV2
+  { pcPriceCommonCfg     ∷ !PriceCommonCfg,
+    pcPricesProviderCfgs ∷ !(NE.NonEmpty PricesProviderCfg)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
+
+data PriceCommonCfg = PriceCommonCfg
+  { pccCommonResolution   ∷ !CommonResolution,
+    pccNetworkId          ∷ !GYNetworkId,
+    pccPriceDiffThreshold ∷ !Double
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
+
+data PricesProviderCfg =
+    MaestroConfig
+  { mcApiKey             ∷ !(Confidential Text),
+    mcResolutionOverride ∷ !(Maybe Maestro.Resolution),
+    mcDex                ∷ !Dex,
+    mcPairOverride       ∷ !(Maybe MaestroPairOverride)
+  }
+  | TaptoolsConfig
+  { ttcApiKey             ∷ !(Confidential Text),
+    ttcResolutionOverride ∷ !(Maybe TtResolution)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PricesProviderCfg
+
+
+-------------------------------------------------------------------------------
+-- Price "estimate" from providers
+-------------------------------------------------------------------------------
 
 data MMToken = MMToken
   { mmtAc        ∷ GYAssetClass,
@@ -65,6 +99,134 @@ data MMToken = MMToken
   }
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[StripPrefix "mmt", LowerFirst]] MMToken
+
+data MMTokenPair = MMTokenPair
+  { mmtpCurrency  ∷ MMToken,
+    mmtpCommodity ∷ MMToken
+  }
+  deriving stock (Eq, Ord, Show)
+
+data MaestroPriceException
+  = MaestroPairNotFound
+  | MaestroApiError !Text !MaestroError
+  deriving stock (Show)
+  deriving anyclass (Exception)
+
+data MaestroPairOverride = MaestroPairOverride
+  { mpoPair             ∷ !String,
+    mpoCommodityIsFirst ∷ !Bool
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
+
+data PriceError = PriceUnavailable | PriceIsZero | PriceMismatch
+
+newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO Price }
+
+buildGetQuota ∷ PriceCommonCfg → PricesProviderCfg → GetQuota
+
+buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
+  env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
+  res ← maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
+
+  (pairName, commodityIsA) ← case mcPairOverride of
+    -- We have to override with given details.
+    Just (MaestroPairOverride {..}) → do
+      pure (pack mpoPair, mpoCommodityIsFirst)
+    -- We are given commodity token and need to find pair name.
+    Nothing → do
+      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
+
+      let go []           = throwIO MaestroPairNotFound
+          go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo mmtp dpi
+      first dexPairInfoPair <$> go allDexPairs
+
+  let pair = TaggedText pairName
+
+  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
+
+  let info = head ohlInfo
+      curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
+      comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
+      precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
+
+      price =
+        if commodityIsA
+          then ohlcCandleInfoCoinBClose info
+          else ohlcCandleInfoCoinAClose info
+
+      adjustedPrice = price * precisionDiff
+
+  return $ Price (toRational adjustedPrice)
+
+  where
+    isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
+    isRelevantPairInfo mmtp dpi@DexPairInfo {..} =
+      ( (dpi, False)
+          <$ findMatchingMMTP mmtp
+            (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
+            (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
+      )
+        <|> ( (dpi, True)
+                <$ findMatchingMMTP mmtp
+                  (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
+                  (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
+            )
+
+    findMatchingMMTP ∷ MMTokenPair → (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+    findMatchingMMTP mmtp tokenA tokenB = fromRight Nothing $ do
+      assetClassA ← assetClassFromMaestro tokenA
+      assetClassB ← assetClassFromMaestro tokenB
+      Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
+
+    functionLocationIdent = "getMaestroPrice"
+    
+buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → do
+  if pccNetworkId /= GYMainnet then throwIO $ userError "Taptools prices provider only supports Mainnet." else return ()
+  manager' ← taptoolsManager ttcApiKey
+  let env = mkClientEnv manager' taptoolsBaseUrl
+
+  res ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
+
+  let priceFromTokenPair
+        | mmtpCurrency mmtp  == mmtLovelace = getAssetPrice . mmtAc . mmtpCommodity $ mmtp
+        | mmtpCommodity mmtp == mmtLovelace = do
+            currencyPrice ← getAssetPrice . mmtAc . mmtpCurrency $ mmtp 
+            return $ invPrice currencyPrice
+        | otherwise = throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
+        where
+          getAssetPrice ∷ GYAssetClass → IO Price
+          getAssetPrice gyAsset = case gyAsset of
+              GYLovelace   → return $ Price (1 % 1)
+              GYToken cs _ → do
+                let unit     = show cs
+                    interval = show res
+                ohlcvInfo ← priceFromTaptools (Just unit) (Just interval) (Just 1) env
+                case ohlcvInfo of
+                  Left e         → throwIO e
+                  Right ttOHLCVs → return (Price . toRational . close . head $ ttOHLCVs)
+  priceFromTokenPair
+
+buildGetQuotas ∷ PriceConfigV2 → [GetQuota]
+buildGetQuotas PriceConfigV2 {..} = buildGetQuota pcPriceCommonCfg <$> NE.toList pcPricesProviderCfgs
+
+priceEstimate ∷ PriceConfigV2 → MMTokenPair → IO (Either PriceError Price)
+priceEstimate pc@PriceConfigV2 {..} mmtp = do
+  let providers = buildGetQuotas pc
+  ps ← mapM (\prov → getQuota prov mmtp) providers
+  
+  let p   = Price . mean $ getPrice <$> ps
+      rsd = relStdDev $ fromRational . getPrice <$> ps
+      ths = pccPriceDiffThreshold pcPriceCommonCfg
+
+  if rsd > ths
+    then return . Left $ PriceMismatch
+    else return . Right $ p
+
+
+-------------------------------------------------------------------------------
+-- Order Book Prices and other Helper Functions
+-------------------------------------------------------------------------------
 
 mmtLovelace ∷ MMToken
 mmtLovelace = MMToken {mmtAc = GYLovelace, mmtPrecision = 6}
@@ -89,12 +251,6 @@ showTokenAmount MMToken {..} amt = case someNatVal mmtPrecision of
     getTokenName GYLovelace                   = "ADA"
     getTokenName (GYToken _ (GYTokenName bs)) = unpack bs  -- Using @unpack@ as @show@ on `GYTokenName` leads to superfluous double quotes.
 
-data MMTokenPair = MMTokenPair
-  { mmtpCurrency  ∷ MMToken,
-    mmtpCommodity ∷ MMToken
-  }
-  deriving stock (Eq, Ord, Show)
-
 mkMMTokenPair ∷ MMToken → MMToken → MMTokenPair
 mkMMTokenPair currSt commSt =
   MMTokenPair
@@ -108,75 +264,6 @@ toOAPair MMTokenPair {mmtpCurrency, mmtpCommodity} =
     { currencyAsset = mmtAc mmtpCurrency,
       commodityAsset = mmtAc mmtpCommodity
     }
-
-data MaestroPairOverride = MaestroPairOverride
-  { mpoPair             ∷ !String,
-    mpoCommodityIsFirst ∷ !Bool
-  }
-  deriving stock (Show, Generic)
-  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
-
-data PriceConfig = PriceConfig
-  { pcApiKey     ∷ !(Confidential Text),
-    pcResolution ∷ !Resolution,
-    pcNetworkId  ∷ !GYNetworkId,
-    pcDex        ∷ !Dex,
-    pcOverride   ∷ !(Maybe MaestroPairOverride),
-    pcTaptoolsApiKey             ∷ !(Confidential Text),
-    pcTaptoolsResolutionOverride ∷ !(Maybe TtResolution)
-  }
-  deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
-
-data MaestroPP = MaestroPP
-  { mppEnv        ∷ !(MaestroEnv 'V1),
-    mppResolution ∷ !Resolution,
-    mppDex        ∷ !Dex,
-    mppOverride   ∷ !(Maybe MaestroPairOverride)
-  }
-
-data TaptoolsPP = TaptoolsPP
-  { ttppEnv        ∷ !ClientEnv,
-    ttppResolution ∷ !TtResolution
-  }
-
-data PricesProviders = PP
-  { maestroPP   ∷ !MaestroPP,
-    taptoolsPP  ∷ !TaptoolsPP,
-    orderBookPP ∷ !(Connection, DEXInfo)
-  }
-
-buildPP
-  ∷ Connection
-  → DEXInfo
-  → PriceConfig
-  → IO PricesProviders
-buildPP c dex PriceConfig {..} =
-  PP
-    <$> ppMaestro
-    <*> ppTaptools
-    <*> return (c, dex)
- where
-  ppMaestro ∷ IO MaestroPP
-  ppMaestro = do
-    env ← networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
-    return
-      MaestroPP
-        { mppEnv = env,
-          mppResolution = pcResolution,
-          mppDex = pcDex,
-          mppOverride = pcOverride
-        }
-
-  ppTaptools ∷ IO TaptoolsPP
-  ppTaptools = do
-    manager' ← taptoolsManager pcTaptoolsApiKey
-    let env = mkClientEnv manager' taptoolsBaseUrl
-    return
-      TaptoolsPP
-        { ttppEnv = env,
-          ttppResolution = maybe (fromResolution pcResolution) id pcTaptoolsResolutionOverride
-        }
 
 {-
     It contains: * Total sell volume in commodity asset
@@ -243,6 +330,55 @@ throwMspvApiError locationInfo =
 handleMaestroError ∷ Text → Either MaestroError a → IO a
 handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
+
+-------------------------------------------------------------------------------
+-- Deprecated
+-------------------------------------------------------------------------------
+
+data PriceConfig = PriceConfig
+  { pcApiKey     ∷ !(Confidential Text),
+    pcResolution ∷ !Resolution,
+    pcNetworkId  ∷ !GYNetworkId,
+    pcDex        ∷ !Dex,
+    pcOverride   ∷ !(Maybe MaestroPairOverride)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
+
+data MaestroPP = MaestroPP
+  { mppEnv        ∷ !(MaestroEnv 'V1),
+    mppResolution ∷ !Resolution,
+    mppDex        ∷ !Dex,
+    mppOverride   ∷ !(Maybe MaestroPairOverride)
+  }
+
+data PricesProviders = PP
+  { maestroPP   ∷ !MaestroPP,
+    orderBookPP ∷ !(Connection, DEXInfo)
+  }
+
+buildPP
+  ∷ Connection
+  → DEXInfo
+  → PriceConfig
+  → IO PricesProviders
+buildPP c dex PriceConfig {..} =
+  PP
+    <$> ppMaestro
+    <*> return (c, dex)
+ where
+  ppMaestro ∷ IO MaestroPP
+  ppMaestro = do
+    env ← networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
+    return
+      MaestroPP
+        { mppEnv = env,
+          mppResolution = pcResolution,
+          mppDex = pcDex,
+          mppOverride = pcOverride
+        }
+
+--ToDo:  Write in terms of 'buildGetQuota PriceCommonCfg {..} MaestroConfig {..}' to avoid code duplication.
 getMaestroPrice
   ∷ PricesProviders
   → MMTokenPair
@@ -298,26 +434,3 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
     Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
   functionLocationIdent = "getMaestroPrice"
-
-getTaptoolsPrice ∷ PricesProviders → MMTokenPair → IO Price
-getTaptoolsPrice PP {taptoolsPP = TaptoolsPP {..}} mmtp
-  | mmtpCurrency mmtp  == mmtLovelace = getAssetPrice . mmtAc . mmtpCommodity $ mmtp
-
-  | mmtpCommodity mmtp == mmtLovelace = do
-      currencyPrice ← getAssetPrice . mmtAc . mmtpCurrency $ mmtp 
-      return $ invPrice currencyPrice
-
-  | otherwise = return mempty  --ToDo: What to do when the traiding pair does not involve ADA?
-
-  where
-    getAssetPrice ∷ GYAssetClass → IO Price
-    getAssetPrice gyAsset = case gyAsset of
-        GYLovelace   → return $ Price (1 % 1)
-        GYToken cs _ → do
-          let ttUnit     = show cs
-              ttInterval = show ttppResolution
-          ohlcvInfo ← priceFromTaptools (Just ttUnit) (Just ttInterval) (Just 1) ttppEnv
-          case ohlcvInfo of
-            Left e         → throwIO e
-            Right ttOHLCVs → return (Price . toRational . close . head $ ttOHLCVs)
-

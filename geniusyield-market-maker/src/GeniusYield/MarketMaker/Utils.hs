@@ -10,7 +10,7 @@ import           Data.Text.Encoding               (encodeUtf8)
 import           Data.Time.Clock.POSIX            (POSIXTime)
 import           GeniusYield.Api.Dex.PartialOrder (PORefs)
 import           GeniusYield.GYConfig             (Confidential (..))
-import           GeniusYield.Imports              (Generic, coerce, first, (&))
+import           GeniusYield.Imports              (Generic, coerce, first, throwIO, (&))
 import           GeniusYield.MarketMaker.User     (Secret (getSecret),
                                                    User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
@@ -64,10 +64,33 @@ instance HasPartialOrderConfigAddr DEXInfo where
 
 
 -------------------------------------------------------------------------------
+-- Common Price Resolution
+-------------------------------------------------------------------------------
+
+-- | Generic time resolution for OHLC Candles
+data CommonResolution = CRes5m | CRes15m | CRes30m | CRes1h | CRes4h
+                      | CRes1d | CRes1w  | CRes1mo
+                      deriving stock (Eq, Ord, Show, Generic)
+
+instance FromJSON CommonResolution
+
+class PriceResolution a where
+  resolutionInherited :: Map.Map CommonResolution a
+
+instance PriceResolution Maestro.Resolution where
+  resolutionInherited = Map.fromList [ (CRes5m, Res5m), (CRes15m, Res15m), (CRes30m, Res30m), (CRes1h, Res1h)
+                                     , (CRes4h, Res4h), (CRes1d, Res1d), (CRes1w, Res1w), (CRes1mo, Res1mo) ]
+
+fromCommonResolution :: PriceResolution a => CommonResolution -> IO a
+fromCommonResolution = maybe (throwIO $ userError "Undefined common price resolution.") pure
+                       . flip Map.lookup resolutionInherited
+
+
+-------------------------------------------------------------------------------
 -- TapTools OHLCV query
 -------------------------------------------------------------------------------
 
--- | Time resolution for OHLC Candles
+-- | Taptools time resolution for OHLC Candles
 data TtResolution = TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h | TtRes4h | TtRes12h
                   | TtRes1d | TtRes3d | TtRes1w  | TtRes1mo
                   deriving stock (Eq, Ord, Generic)
@@ -80,10 +103,9 @@ instance Show TtResolution where
                                 , (TtRes1d, "1d"), (TtRes3d, "3d"), (TtRes1w, "1w"), (TtRes1mo, "1M") ]
          in  fromJust . flip Map.lookup kvm
 
-fromResolution :: Resolution -> TtResolution
-fromResolution = let kvm = Map.fromList [ (Res1m, TtRes3m), (Res5m, TtRes5m), (Res15m, TtRes15m), (Res30m, TtRes30m)
-                                        , (Res1h, TtRes1h), (Res4h, TtRes4h), (Res1d, TtRes1d), (Res1w, TtRes1w), (Res1mo, TtRes1mo) ]
-                 in  fromJust . flip Map.lookup kvm
+instance PriceResolution TtResolution where
+  resolutionInherited = Map.fromList [ (CRes5m, TtRes5m), (CRes15m, TtRes15m), (CRes30m, TtRes30m), (CRes1h, TtRes1h)
+                                     , (CRes4h, TtRes4h), (CRes1d, TtRes1d), (CRes1w, TtRes1w), (CRes1mo, TtRes1mo) ]
 
 type TtUnit = String; type TtInterval = String
 
@@ -133,3 +155,22 @@ taptoolsBaseUrl = BaseUrl Http "openapi.taptools.io" 80 "api/v1"
 
 priceFromTaptools :: Maybe TtUnit -> Maybe TtInterval -> Maybe Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
 priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUnit mbInterval mbNumIntervals)
+
+
+-------------------------------------------------------------------------------
+-- Standard Deviation
+-------------------------------------------------------------------------------
+
+mean :: Fractional a => [a] -> a
+mean sample = let n = fromIntegral . length $ sample
+              in  sum sample / n
+
+stdDev :: [Double] -> Double
+stdDev sample = let avg = mean sample
+                    sqs = (\x -> (x - avg) ** 2) <$> sample
+                in  sqrt . mean $ sqs
+
+relStdDev :: [Double] -> Double
+relStdDev sample = let avg = mean sample
+                       sd  = stdDev sample
+                   in  sd / avg

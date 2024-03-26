@@ -227,7 +227,7 @@ priceEstimate pc@PriceConfigV2 {..} mmtp = do
           rsd = relStdDev $ fromRational . getPrice <$> ps
           ths = pccPriceDiffThreshold pcPriceCommonCfg
       if rsd > ths
-        then return . Left $ PriceMismatch
+        then return . Left  $ PriceMismatch
         else return . Right $ p
 
 

@@ -441,7 +441,7 @@ paths:
       description: Submit a signed transaction.
       requestBody:
         required: true
-        content: {application/json: {{schema: {$ref: '#/components/schemas/Transaction'}}}}
+        content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
       responses:
         201:
           description: "Submitted the passed signed transactions and created new on-chain orders."

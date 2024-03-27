@@ -1,0 +1,465 @@
+openapi: '3.1.0'
+info:
+  title: Genius Yield Trading Bot API
+  description: Open API Specification of the Genius Yield Trading Bot API for external trading strategy implementation integration.
+  version: '0.0.1'
+  license:
+    name: Apache License 2.0
+    identifier: Apache-2.0
+  contact:
+    name: Genius Yield Technical Support
+    url: https://www.geniusyield.co/
+    email: support@geniusyield.co
+servers:
+  - url: https://{backendServerUrl}/api/{apiVersion}
+    description: Trading Bot API backend with environment and version
+    variables:
+      backendServerUrl:
+        default: localhost
+        description: The URI of the Trading Bot API backend.
+      apiVersion:
+        default: v0
+        description: API version number
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key to access the Trading Bot API.
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              minimum: 0
+              maximum: 9999
+              format: int32
+              description: Numeric error code indicating the type of error.
+            instance:
+              type: string
+              description: Unique identifier of the indicent instance (used for troubleshooting).
+            message:
+              type: string
+              description: Human-readable message providing more details about the error.
+            details:
+              type: array
+              items:
+                type: string
+              description: Optional array of detailed error messages or information.
+      required: [code, message]
+    Settings:
+      type: object
+      properties: {
+          network: { type: string, enum: ["preprod", "mainnet"], examples: ["mainnet", "preprod"] },
+          version: { type: string, examples: ["1.0.2"], pattern: "[0-9].[0-9].[0-9]" },
+          revision: { type: string, examples: ["c7cc91eec7f3d50b8de196a01034b0cc7097ae59"] },
+          backend: { type: string, enum: ["mmb"]},
+          address: { type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"] },
+          collateral_utxo: { type: string, examples: ["33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"] }
+        }
+      required: [network, version, revision, backend]
+      examples:
+      - { network: "mainnet", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f", collateral_utxo: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
+      - { network: "preprod", version: "0.1.0", revision: "c7cc91eec7f3d50b8de196a01034b0cc7097ae59", backend: "mmb", address: "addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f", collateral_utxo: "33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3" }
+    Fees:
+      type: object
+      properties: {
+          flat_maker_fee: { type: number, format: double, minimum: 0 },
+          flat_taker_fee: { type: number, format: double, minimum: 0 },
+          percentage_maker_fee: { type: number, format: double, minimum: 0, maximum: 100  },
+          percentage_taker_fee: { type: number, format: double, minimum: 0, maximum: 100  }
+        }
+      required: [flat_maker_fee, flat_taker_fee, percentage_maker_fee, percentage_taker_fee]
+      examples:
+      - { flat_maker_fee: "1.2", flat_taker_fee: "2.3", percentage_maker_fee: "0.75", percentage_taker_fee: "1.25" }
+    Market:
+      type: object
+      properties:
+        market_id: { type: string, description: "Identifier of a market with concatenated asset IDs with underscore delimiter to separate base and target.", examples: ["lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
+        base_asset: { type: string, description: "Identifier of the base asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"],  }
+        target_asset: { type: string, description: "Identifier of the target asset", examples: ["dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
+      required: [market_id, base_asset, target_asset]
+      examples:
+      - {
+          market_id: "lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          base_asset: "lovelace",
+          target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"
+        }
+    Markets:
+      type: array
+      items: {$ref: '#/components/schemas/Market'}
+    Asset:
+      type: object
+      properties:
+        asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
+        asset_ticker: { type: string, description: "Ticker of the cryptoasset.", examples: ["ADA", "GENS"] }
+        asset_decimals: { type: integer, format: int32, minimum: 0, examples: [0, 6] }
+      required: [asset, asset_ticker, asset_decimals]
+      examples:
+      - {
+          asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          asset_ticker: "GENS",
+          asset_decimals: 6
+        }
+      - {
+          asset: "lovelace",
+          asset_ticker: "ADA",
+          asset_decimals: 6
+        }
+    Assets:
+      type: array
+      items: {$ref: '#/components/schemas/Asset'}
+    Balance:
+      type: object
+      properties:
+        asset: { type: string, description: "Identifier of the asset", examples: ["lovelace", "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"]}
+        amount: { type: string, format: integer, description: "Amount of asset available in indivisible units.", examples: ["123456789123456789123456789"] }
+      required: [asset, amount]
+      examples:
+      - {
+          asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          amount: "4531034100"
+        }
+    Balances:
+      type: array
+      items: {$ref: '#/components/schemas/Balance'}
+    Order:
+      properties:
+        base_asset: {type: string, description: "The base cryptoasset", examples: ["lovelace"] }
+        base_amount: {type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units", examples: ["6000000"] }
+        target_asset: {type: string, description: "The the target cryptoasset", examples: ["dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
+        target_amount: { type: string, format: integer, description: "Transaction amount in target pair volume  in indivisible units." }
+        type: { type: string, enum: ["buy", "sell"], examples: ["buy"] }
+        valid_from: {type: string, format: date-time, examples: ["1985-04-12T23:00:00.00Z"] }
+        valid_until: {type: string, format: date-time, examples: ["1985-04-12T23:15:00.00Z"] }
+      required: [base_asset, base_amount, target_asset, target_amount, type]
+      examples:
+      - {
+          base_asset : "lovelace",
+          base_amount : "4000000",
+          target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          target_amount : "1000000",
+          type : "buy"
+        }
+      - {
+          base_asset : "lovelace",
+          base_amount : "4000000",
+          target_asset: "dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53",
+          target_amount : "1000000",
+          type : "buy",
+          valid_from: "2024-04-12T23:00:00.00Z",
+          valid_until: "2024-04-13T23:00:00.00Z",
+        }
+    Orders:
+      type: array
+      items: {$ref: '#/components/schemas/Order'}
+    BuildTxRequestBase:
+      type: object
+      properties:
+        collateral_utxo: {type: string, examples: ["33be2c9754bb3c2ea32039722cff2e34cva09d746283ab1234ce7155866e3d30#3"]}
+        address: {type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"]}
+      required: []
+    BuildPlaceOrdersTxRequest:
+      allOf:
+        - $ref: '#/components/schemas/BuildTxRequestBase'
+        - type: object
+          properties:
+            orders: {type: array, items: {$ref: '#/components/schemas/Order'}}
+          required: [orders]
+    BuildCancelOrdersTxRequest:
+      allOf:
+        - $ref: '#/components/schemas/BuildTxRequestBase'
+        - type: object
+          properties:
+            orders: {type: array, items: {type: string, description: "orders to be cancelled"}}
+          required: [orders]
+    Transaction:
+      type: object
+      properties:
+        cbor_hex: {type: string}
+    SubmitTransactionResponse:
+      type: object
+      properties:
+        transaction_id: {type: string}
+        message: {type: string}
+        fees: {type: string, format: numeric}
+        flat_fees: {type: string, format: numeric}
+        offer_fee_percent: {type: string, format: numeric}
+        offer_fee_amount: {type: string, format: numeric}
+        deposit: {type: string, format: numeric}
+      required: [transaction_id, message, fees, flat_fees, offer_fee_percent, offer_fee_percent, offer_fee_amount, deposit]
+    Trade:
+      type: object
+      properties:
+        timestamp: { type: string , description: Trade timestamp, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }
+        base_asset: {type: string, description: "The base cryptoasset", examples: ["lovelace"] }
+        base_asset_amount: { type: string, format: integer, description: "Transaction amount in base pair volume in indivisible units." }
+        target_asset: {type: string, description: "The the target cryptoasset", examples: ["dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }
+        target_asset_amount: { type: string, format: integer, description: "Transaction amount in target pair volume in indivisible units." }
+        type: { type: string, description: "Used to determine the type of the transaction that was completed. Buy: Identifies an ask that was removed from the order book. Sell: Identifies a bid that was removed from the order book." }
+      required: [timestamp, base_asset, base_asset_amount, target_asset, target_asset_amount, type]
+    Trades:
+      type: array
+      items: {$ref: '#/components/schemas/Trade'}
+      examples:
+      - [
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "2000000", type: "buy"},
+         { "timestamp":"1700050000", "base_asset":"lovelace", "base_asset_amount" : "1000000", "target_asset":"dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53", "target_asset_amount" : "5000000", type: "sell"},
+        ]
+    Price:
+      type: object
+      properties:
+        base_close: { type: string, format: numeric, description: Base close price. }
+        base_high: { type: string, format: numeric, description: Target high price }
+        base_low: { type: string, format: numeric, description: Base low price }
+        base_open: { type: string, format: numeric, description: Base open price. }
+        base_volume: {type: string, format: numeric, description: Base volume in indivisible units. }
+        target_close: { type: string, format: numeric, description: Target close price }
+        target_high: { type: string, format: numeric, description: Target high price. }
+        target_low: { type: string, format: numeric, description: Target low price.  }
+        target_open: { type: string, format: numeric, description: Target open price. }
+        target_volume: { type: string, format: numeric, description: Base volume in indivisible units. }
+        count: { type: integer, description: Candlestick size }
+        time_period_start: { type: string , description: "Timestamp of the start of the time period", format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }
+        time_period_end: { type: string , description: "Timestamp of the end of the time period", format: "date-time", examples: ["1985-04-12T23:15:00.00Z"] }
+      required: [base_close, base_high, base_low, base_open, base_volume, target_close, target_high, target_low, target_open, target_volume, count, time_period_start, time_period_end]
+    Prices:
+      type: array
+      items: {$ref: '#/components/schemas/Price'}
+security:
+  - ApiKeyAuth: [read, write]
+tags:
+  - name: settings
+    description: Endpoints to access configuration settings and Trading Bot API backend metadata.
+  - name: assets
+    description: Endpoints to access the details of the available assets.
+  - name: markets
+    description: Endpoints to access the details of the trading pairs available via the Trading Bot API.
+  - name: balances
+    description: Endpoints to access the asset balances available for the trading bot.
+  - name: orders
+    description: Endpoints to access the orderbook(s), place new orders or cancel existing orders.
+  - name: trades
+    description: Endpoints to access historical trades.
+  - name: prices
+    description: Endpoints to access historical prices.
+  - name: tx
+    description: "Endpoints enabling working with transactions, and provides support for tasks like; building, signing and submitting transactions."
+paths:
+  /settings:
+    get:
+      tags: [settings]
+      description: Fetch the configuration and metadata.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Settings' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /assets:
+    get:
+      tags: [assets]
+      description: Fetch the assets.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Assets' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /markets:
+    get:
+      tags: [markets]
+      description: Get the trading pairs available for trading.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Markets' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /balances:
+    get:
+      tags: [balances]
+      description: Get available trading bot balances.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Balances' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /orders:
+    get:
+      tags: [orders]
+      description: Fetch existing orders.
+      parameters:
+      - {in: query, name: market_id, required: true, schema: { type: string, examples: ["lovelace_dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53"] }}
+      - {in: query, name: owner, required: false, schema: { type: string, examples: ["addr1v87wwwe4f59dqc50qyt0ckcs0kvh7glpweyal2k5nsgyucgk6038f"] }}
+      - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], examples: ["buy"] }}
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Orders' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+    post:
+      tags: [orders]
+      description: Create new orders.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Orders'
+      responses:
+        201:
+          description: "Succesfully created new on-chain orders."
+          content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /orders/{order_ids}:
+    delete:
+      tags: [orders]
+      description: Cancel existing orders.
+      parameters:
+       - in: path
+         name: order_ids
+         description: Comma-separated list of orders to be cancelled.
+         required: true
+         schema: { type: string }
+      responses:
+        202:
+          description: Canceled on-chain orders.
+          content: { application/json: { schema: { $ref: '#/components/schemas/SubmitTransactionResponse'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        404: {description: Order not found, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /historical-trades:
+    get:
+      parameters:
+      - {in: query, name: market_id, required: true, schema: { type: string }}
+      - {in: query, name: type, required: false, schema: { type: string, enum: ["buy", "sell"], examples: ["buy"] }}
+      - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
+      - {in: query, name: page, required: false, schema: { type: integer, examples: ["1"] }}
+      - {in: query, name: start_time, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: end_time, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      tags: [trades]
+      description: Fetch historical trades.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Trades' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /historical-prices/maestro:
+    get:
+      tags: [prices]
+      parameters:
+      - {in: path, name: provider, required: true, default: "maestro", schema: { type: string }}
+      - {in: query, name: market_id, required: true, schema: { type: string }}
+      - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], examples: ["30m"] }}
+      - {in: query, name: from, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: to, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
+      - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
+      description: Fetch price history.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /historical-prices/taptools:
+    get:
+      tags: [prices]
+      parameters:
+      - {in: path, name: provider, required: true, default: "maestro", schema: { type: string }}
+      - {in: query, name: market_id, required: true, schema: { type: string }}
+      - {in: query, name: resolution, required: false, schema: { type: string, enum: ["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w", "1mo"], examples: ["30m"] }}
+      - {in: query, name: from, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: to, required: false, schema: { type: string, format: "date-time", examples: ["1985-04-12T23:00:00.00Z"] }}
+      - {in: query, name: limit, required: false, schema: { type: integer, examples: ["100"] }}
+      - {in: query, name: sort, required: false, schema: { type: string, enum: ["asc", "desc"] }}
+      description: Fetch price history.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Prices' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /trading-fees:
+    get:
+      tags: [fees]
+      description: Fetch the current trading fees.
+      responses:
+        200: {description: Success, content: {application/json: {schema: {$ref: '#/components/schemas/Fees' }}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /tx/build-place-order-tx:
+    post:
+      tags: [tx]
+      description: Build a transaction to place an order.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/BuildPlaceOrdersTxRequest'}}}
+      responses:
+        201:
+          description: "Created unsigned transactions to place new orders"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /tx/build-cancel-order-tx:
+    post:
+      description: Build a transaction to cancel an order.
+      tags: [tx]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/BuildCancelOrdersTxRequest'}}}
+      responses:
+        201:
+          description: "Created unsigned transactions to cancel new orders"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /tx/sign:
+    post:
+      tags: [tx]
+      description: Sign a transaction.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
+      responses:
+        201:
+          description: "Created unsigned transactions to cancel existing orders"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /tx/submit:
+    post:
+      tags: [tx]
+      description: Submit a signed transaction.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
+      responses:
+        201:
+          description: "Submitted the passed signed transactions and created new on-chain orders."
+          content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+  /tx/sign-and-submit:
+    post:
+      tags: [tx]
+      description: Sign and submit a transaction.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/Transaction'}}}
+      responses:
+        201:
+          description: "Submitted the passed signed transactions and created new on-chain orders."
+          content: {application/json: {schema: {$ref: '#/components/schemas/SubmitTransactionResponse'}}}
+        400: {description: Bad Request, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        401: {description: Anauthorized access, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
+        500: {description: Internal Server Error, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}

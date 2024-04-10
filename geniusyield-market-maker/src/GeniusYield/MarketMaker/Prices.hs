@@ -61,8 +61,7 @@ import           Servant.Client                            (mkClientEnv)
 
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     :: !PriceCommonCfg,
-    pcPricesProviderCfgs :: !(NE.NonEmpty PricesProviderCfg),
-    pcTmpMaestro         :: !PriceConfig  -- temporary, will extract from 'pcPricesProviderCfgs'
+    pcPricesProviderCfgs :: !(NE.NonEmpty PricesProviderCfg)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
@@ -156,15 +155,17 @@ buildPP c dex PriceConfigV2 {..} =
       ppaPricesCluster = pcPricesProviderCfgs
     }
    
+  maestroPP' = head [ppc | ppc@(MaestroConfig {}) <- NE.toList pcPricesProviderCfgs]
+
   ppMaestro :: IO MaestroPP
   ppMaestro = do
-    env <- networkIdToMaestroEnv (coerce . pcApiKey $ pcTmpMaestro) $ pcNetworkId pcTmpMaestro
+    env <- networkIdToMaestroEnv (coerce . mcApiKey $ maestroPP') $ pccNetworkId pcPriceCommonCfg
     return
       MaestroPP
         { mppEnv = env,
-          mppResolution = Just $ pcResolution pcTmpMaestro,
-          mppDex = pcDex pcTmpMaestro,
-          mppOverride = pcOverride pcTmpMaestro
+          mppResolution = mcResolutionOverride maestroPP',
+          mppDex = mcDex maestroPP',
+          mppOverride = mcPairOverride maestroPP'
         }
 
 data PriceError = PriceUnavailable | PriceIsZero | PriceMismatch
@@ -401,7 +402,6 @@ data PriceConfig = PriceConfig
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 
---ToDo:  Write in terms of 'buildGetQuota PriceCommonCfg {..} MaestroConfig {..}' to avoid code duplication.
 getMaestroPrice
   :: PricesProviders
   -> MMTokenPair
@@ -465,3 +465,4 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
     Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
   functionLocationIdent = "getMaestroPrice"
+

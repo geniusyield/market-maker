@@ -61,7 +61,8 @@ import           Servant.Client                            (mkClientEnv)
 
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     :: !PriceCommonCfg,
-    pcPricesProviderCfgs :: !(NE.NonEmpty PricesProviderCfg)
+    pcPricesProviderCfgs :: !(NE.NonEmpty PricesProviderCfg),
+    pcTmpMaestro         :: !PriceConfig  -- temporary, will extract from 'pcPricesProviderCfgs'
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
@@ -120,7 +121,54 @@ data MaestroPairOverride = MaestroPairOverride
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
+data MaestroPP = MaestroPP
+  { mppEnv        :: !(MaestroEnv 'V1),
+    mppResolution :: !(Maybe Maestro.Resolution),
+    mppDex        :: !Dex,
+    mppOverride   :: !(Maybe MaestroPairOverride)
+  }
+
+data PricesProvidersAggregator = PPA
+  { ppaCommonCfg     :: !PriceCommonCfg,
+    ppaPricesCluster :: !(NE.NonEmpty PricesProviderCfg)
+  }
+
+data PricesProviders = PP
+  { maestroPP          :: !MaestroPP,
+    pricesAggregatorPP :: !PricesProvidersAggregator,
+    orderBookPP        :: !(Connection, DEXInfo)
+  }
+
+buildPP
+  :: Connection
+  -> DEXInfo
+  -> PriceConfigV2
+  -> IO PricesProviders
+buildPP c dex PriceConfigV2 {..} =
+  PP
+    <$> ppMaestro
+    <*> ppPricesAggregator
+    <*> return (c, dex)
+ where
+  ppPricesAggregator :: IO PricesProvidersAggregator
+  ppPricesAggregator = pure PPA
+    { ppaCommonCfg     = pcPriceCommonCfg,
+      ppaPricesCluster = pcPricesProviderCfgs
+    }
+   
+  ppMaestro :: IO MaestroPP
+  ppMaestro = do
+    env <- networkIdToMaestroEnv (coerce . pcApiKey $ pcTmpMaestro) $ pcNetworkId pcTmpMaestro
+    return
+      MaestroPP
+        { mppEnv = env,
+          mppResolution = Just $ pcResolution pcTmpMaestro,
+          mppDex = pcDex pcTmpMaestro,
+          mppOverride = pcOverride pcTmpMaestro
+        }
+
 data PriceError = PriceUnavailable | PriceIsZero | PriceMismatch
+  deriving stock Show
 
 newtype GetQuota = GetQuota { getQuota :: MMTokenPair -> IO (Either PriceError Price) }
 
@@ -213,20 +261,20 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp -> case
 
   _         -> return . Left $ PriceUnavailable
 
-buildGetQuotas :: PriceConfigV2 -> [GetQuota]
-buildGetQuotas PriceConfigV2 {..} = buildGetQuota pcPriceCommonCfg <$> NE.toList pcPricesProviderCfgs
+buildGetQuotas :: PricesProviders -> [GetQuota]
+buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> NE.toList ppaPricesCluster
 
-priceEstimate :: PriceConfigV2 -> MMTokenPair -> IO (Either PriceError Price)
-priceEstimate pc@PriceConfigV2 {..} mmtp = do
-  let providers = buildGetQuotas pc
-  eps <- mapM (\prov -> getQuota prov mmtp) providers
+priceEstimate :: PricesProviders -> MMTokenPair -> IO (Either PriceError Price)
+priceEstimate pp mmtp = do
+  let pproviders = buildGetQuotas pp
+  eps <- mapM (\prov -> getQuota prov mmtp) pproviders
   
   case rights eps of
     []   -> throwIO $ userError "Price not available from any provider."
     ps -> do
       let p   = Price . mean $ getPrice <$> ps
           rsd = relStdDev $ fromRational . getPrice <$> ps
-          ths = pccPriceDiffThreshold pcPriceCommonCfg
+          ths = pccPriceDiffThreshold . ppaCommonCfg . pricesAggregatorPP $ pp
       if rsd > ths
         then return . Left  $ PriceMismatch
         else return . Right $ p
@@ -353,39 +401,6 @@ data PriceConfig = PriceConfig
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 
-data MaestroPP = MaestroPP
-  { mppEnv        :: !(MaestroEnv 'V1),
-    mppResolution :: !Resolution,
-    mppDex        :: !Dex,
-    mppOverride   :: !(Maybe MaestroPairOverride)
-  }
-
-data PricesProviders = PP
-  { maestroPP   :: !MaestroPP,
-    orderBookPP :: !(Connection, DEXInfo)
-  }
-
-buildPP
-  :: Connection
-  -> DEXInfo
-  -> PriceConfig
-  -> IO PricesProviders
-buildPP c dex PriceConfig {..} =
-  PP
-    <$> ppMaestro
-    <*> return (c, dex)
- where
-  ppMaestro :: IO MaestroPP
-  ppMaestro = do
-    env <- networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
-    return
-      MaestroPP
-        { mppEnv = env,
-          mppResolution = pcResolution,
-          mppDex = pcDex,
-          mppOverride = pcOverride
-        }
-
 --ToDo:  Write in terms of 'buildGetQuota PriceCommonCfg {..} MaestroConfig {..}' to avoid code duplication.
 getMaestroPrice
   :: PricesProviders
@@ -414,7 +429,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
 
   let pair = TaggedText pairName
 
-  ohlInfo <- handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
+  ohlInfo <- handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair mppResolution (Just Descending)
 
   let info = head ohlInfo
       curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp

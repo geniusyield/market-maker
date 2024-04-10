@@ -75,7 +75,7 @@ data PlaceOrderAction = PlaceOrderAction
 newtype CancelOrderAction = CancelOrderAction {coaPoi :: PartialOrderInfo}
   deriving stock (Show)
 
-type Strategy = PriceConfigV2 -> PricesProviders -> User -> MMToken -> IO UserActions  -- TODO: Merge 'PriceProviders' into 'PriceConfigV2'
+type Strategy = PricesProviders -> User -> MMToken -> IO UserActions
 
 data StrategyConfig = StrategyConfig
   { scSpread                 :: !Rational,
@@ -144,15 +144,15 @@ withPriceEstimate :: (Price -> IO UserActions) -> Strategy
 withPriceEstimate = withPriceEstimate' defaultPriceErrorHandling
 
 withPriceEstimate' :: (PriceError -> Strategy) -> (Price -> IO UserActions) -> Strategy
-withPriceEstimate' kErr k pc pp user mmt = do
+withPriceEstimate' kErr k pp user mmt = do
   let mmTokenPair = mkMMTokenPair mmtLovelace mmt
-  pe <- priceEstimate pc mmTokenPair
+  pe <- priceEstimate pp mmTokenPair
   case pe of
-    Left  pErr -> kErr pErr pc pp user mmt
+    Left  pErr -> kErr pErr pp user mmt
     Right p    -> k p
 
 defaultPriceErrorHandling :: PriceError -> Strategy
-defaultPriceErrorHandling pErr _ pp user mmt = do
+defaultPriceErrorHandling pErr pp user mmt = do
   let mmTokenPair            = mkMMTokenPair mmtLovelace mmt
       (c, dex)               = orderBookPP pp
       Connection _ providers = c
@@ -163,7 +163,7 @@ defaultPriceErrorHandling pErr _ pp user mmt = do
       allOwnOrders       = M.foldr (++) [] ownOrdersPerUser
       cancelOrderActions = map (CancelOrderAction . snd) allOwnOrders
 
-  logWarn providers "Canceling all orders due to price mistmatch"
+  logWarn providers $ "Canceling all orders due to price mistmatch: " ++ (show pErr)
   return $ mempty { uaCancels = cancelOrderActions }
 
  where
@@ -173,7 +173,6 @@ defaultPriceErrorHandling pErr _ pp user mmt = do
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
   StrategyConfig { .. }
-  pcv2
   pp
   user
   mmToken = do
@@ -183,7 +182,7 @@ fixedSpreadVsMarketPriceStrategy
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
 
-    flip5 withPriceEstimate pcv2 pp user mmToken $ \mp -> do
+    flip4 withPriceEstimate pp user mmToken $ \mp -> do
       -- mp <- getMaestroPrice pp mmTokenPair
       logInfo providers $ logMarketInfo mp
 
@@ -394,6 +393,6 @@ orderIsToBeRemoved mPrice cancelLimitSpread (mmtp, poi) =
         SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
         SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (cancelLimitSpread * marketPrice)
 
-flip5 :: (a -> b -> c -> d -> e -> r) -> (b -> c -> d -> e -> a -> r)
-flip5 f = \b c d e a -> f a b c d e
+flip4 :: (a -> b -> c -> d -> r) -> (b -> c -> d -> a -> r)
+flip4 f = \b c d a -> f a b c d
 

@@ -30,6 +30,7 @@ import           GeniusYield.OrderBot.DataSource.Providers (Connection (..))
 import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
                                                             OrderBook (..),
                                                             Orders (unOrders),
+                                                            populateOrderBook,
                                                             withEachAsset)
 import           GeniusYield.OrderBot.Types
 import           GeniusYield.TxBuilder                     (GYTxQueryMonad (utxosAtAddress),
@@ -74,7 +75,7 @@ data PlaceOrderAction = PlaceOrderAction
 newtype CancelOrderAction = CancelOrderAction {coaPoi :: PartialOrderInfo}
   deriving stock (Show)
 
-type Strategy = PricesProviders -> User -> MMToken -> IO UserActions
+type Strategy = PriceConfigV2 -> PricesProviders -> User -> MMToken -> IO UserActions  -- TODO: Merge 'PriceProviders' into 'PriceConfigV2'
 
 data StrategyConfig = StrategyConfig
   { scSpread                 :: !Rational,
@@ -139,9 +140,40 @@ filterOwnOrders mmts users allOrders =
     fromJust
       $ find ((==) poiOwnerKey . toPubKeyHash . pkhUser) users
 
+withPriceEstimate :: (Price -> IO UserActions) -> Strategy
+withPriceEstimate = withPriceEstimate' defaultPriceErrorHandling
+
+withPriceEstimate' :: (PriceError -> Strategy) -> (Price -> IO UserActions) -> Strategy
+withPriceEstimate' kErr k pc pp user mmt = do
+  let mmTokenPair = mkMMTokenPair mmtLovelace mmt
+  pe <- priceEstimate pc mmTokenPair
+  case pe of
+    Left  pErr -> kErr pErr pc pp user mmt
+    Right p    -> k p
+
+defaultPriceErrorHandling :: PriceError -> Strategy
+defaultPriceErrorHandling pErr _ pp user mmt = do
+  let mmTokenPair            = mkMMTokenPair mmtLovelace mmt
+      (c, dex)               = orderBookPP pp
+      Connection _ providers = c
+  
+  maob <- populateOrderBook c dex (dexPORefs dex) (map toOAPair [mmTokenPair])
+  
+  let ownOrdersPerUser   = getOwnOrders [mmTokenPair] [user] maob
+      allOwnOrders       = M.foldr (++) [] ownOrdersPerUser
+      cancelOrderActions = map (CancelOrderAction . snd) allOwnOrders
+
+  logWarn providers "Canceling all orders due to price mistmatch"
+  return $ mempty { uaCancels = cancelOrderActions }
+
+ where
+  logWarn :: GYProviders -> String -> IO ()
+  logWarn providers = gyLogWarning providers logNS
+
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
   StrategyConfig { .. }
+  pcv2
   pp
   user
   mmToken = do
@@ -151,205 +183,205 @@ fixedSpreadVsMarketPriceStrategy
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
 
-    mp ← getMaestroPrice pp mmTokenPair
+    flip5 withPriceEstimate pcv2 pp user mmToken $ \mp -> do
+      -- mp <- getMaestroPrice pp mmTokenPair
+      logInfo providers $ logMarketInfo mp
 
-    logInfo providers $ logMaestroMarketInfo mp
+      (bp, maob) <- getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold
 
-    (bp, maob) ← getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold
+      ownUtxos <- runGYTxQueryMonadNode nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
+      let ownOrdersPerUser = getOwnOrders [mmTokenPair] [user] maob
+          allOwnOrders = M.foldr (++) [] ownOrdersPerUser
+          equityInOrders = foldMap' getEquityFromOrder allOwnOrders
+          equityInWallet = equityFromValue $ foldlUTxOs' (\acc utxo -> acc <> utxoValue utxo) mempty ownUtxos
 
-    ownUtxos ← runGYTxQueryMonadNode nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
-    let ownOrdersPerUser = getOwnOrders [mmTokenPair] [user] maob
-        allOwnOrders = M.foldr (++) [] ownOrdersPerUser
-        equityInOrders = foldMap' getEquityFromOrder allOwnOrders
-        equityInWallet = equityFromValue $ foldlUTxOs' (\acc utxo -> acc <> utxoValue utxo) mempty ownUtxos
+          ordersToCancel =
+            let mp' = getPrice mp
+                scCancelWindowRatio' = fromMaybe 0 scCancelWindowRatio
+                priceCrosses (toOAPair -> oap, poi) =
+                  case mkOrderInfo oap poi of
+                    SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price * (1 - scCancelWindowRatio') <= mp'
+                    SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price * (1 + scCancelWindowRatio') >= mp'
+            in
+              nub $
+                   -- Cancel placed orders which are crossed by market price.
+                   filter priceCrosses allOwnOrders
+                <> -- And also cancel those which are "too away" from market price.
+                   ordersToBeRemoved mp cancelThreshold allOwnOrders
+          cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
 
-        ordersToCancel =
-          let mp' = getPrice mp
-              scCancelWindowRatio' = fromMaybe 0 scCancelWindowRatio
-              priceCrosses (toOAPair -> oap, poi) =
-                case mkOrderInfo oap poi of
-                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price * (1 - scCancelWindowRatio') <= mp'
-                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price * (1 + scCancelWindowRatio') >= mp'
-          in
-            nub $
-                 -- Cancel placed orders which are crossed by market price.
-                 filter priceCrosses allOwnOrders
-              <> -- And also cancel those which are "too away" from market price.
-                 ordersToBeRemoved mp cancelThreshold allOwnOrders
-        cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
+          relevantMMTP = mkMMTokenPair mmtLovelace mmToken
+          mtInfo = M.lookup relevantMMTP bp
 
-        relevantMMTP = mkMMTokenPair mmtLovelace mmToken
-        mtInfo = M.lookup relevantMMTP bp
+          ownRemainingOrders = allOwnOrders \\ ordersToCancel
+          lockedLovelaces = getOrdersLockedValue relevantMMTP mmtLovelace ownRemainingOrders
+          lockedTokens = getOrdersLockedValue relevantMMTP mmToken ownRemainingOrders
+          equityInWalletAfterCancelActions = equityInWallet <> foldMap' getEquityFromOrder ordersToCancel
+          tokensSet = Set.fromList [mmtLovelace, mmToken]
 
-        ownRemainingOrders = allOwnOrders \\ ordersToCancel
-        lockedLovelaces = getOrdersLockedValue relevantMMTP mmtLovelace ownRemainingOrders
-        lockedTokens = getOrdersLockedValue relevantMMTP mmToken ownRemainingOrders
-        equityInWalletAfterCancelActions = equityInWallet <> foldMap' getEquityFromOrder ordersToCancel
-        tokensSet = Set.fromList [mmtLovelace, mmToken]
+      placeOrderActions <- do
+        let TokenVol
+              { tvSellVolThreshold,
+                tvBuyVolThreshold,
+                tvSellMinVol,
+                tvBuyMinVol,
+                tvSellBudget,
+                tvBuyBudget
+              } = scTokenVolume
 
-    placeOrderActions ← do
-      let TokenVol
-            { tvSellVolThreshold,
-              tvBuyVolThreshold,
-              tvSellMinVol,
-              tvBuyMinVol,
-              tvSellBudget,
-              tvBuyBudget
-            } = scTokenVolume
+            (sellVol, buyVol) = case mtInfo of
+              Nothing -> (0, 0)
+              Just OBMarketTokenInfo { mtSellVol, mtBuyVol } -> (mtSellVol, mtBuyVol)
 
-          (sellVol, buyVol) = case mtInfo of
-            Nothing -> (0, 0)
-            Just OBMarketTokenInfo { mtSellVol, mtBuyVol } -> (mtSellVol, mtBuyVol)
+            availableBuyBudget = max 0 (tvBuyBudget - fromIntegral lockedLovelaces)
+            availableSellBudget = max 0 (tvSellBudget - fromIntegral lockedTokens)
+            numNewBuyOrders = availableBuyBudget `quot` tvBuyMinVol
+            numNewSellOrders = availableSellBudget `quot` tvSellMinVol
+            adaOverhead = valueFromLovelace 5_000_000
+            subtractTillZero :: GYValue -> GYValue -> Natural -> Natural
+            subtractTillZero val sub acc = if val `valueGreaterOrEqual` sub then subtractTillZero (val `valueMinus` sub) sub (acc + 1) else acc
+        -- TODO: To subtract from `buyVol` pertaining to order cancellations? Likewise for `sellVol`.
+        -- TODO: Abstract out both buy order actions & sell order actions to a single function.
+        (newBuyOrders, equityInWalletAfterBuyOrds) <-
+          if tvBuyVolThreshold <= fromIntegral buyVol || numNewBuyOrders == 0
+            then pure ([], equityInWalletAfterCancelActions)
+            else do
+              let tokensToOfferPerOrder = availableBuyBudget `quot` numNewBuyOrders
+                  neededAtleastPerOrder = valueFromLovelace (ceiling $ toRational tokensToOfferPerOrder * (1 + makerFeeRatio)) <> adaOverhead
+                  neededAtleast = stimes numNewBuyOrders neededAtleastPerOrder
+                  valueInWalletAfterCancelActions = equityToValue equityInWalletAfterCancelActions
+                  valueSufficient = valueInWalletAfterCancelActions `valueGreaterOrEqual` neededAtleast
+                  actualNumNewBuyOrders = if valueSufficient then numNewBuyOrders else fromIntegral $ subtractTillZero valueInWalletAfterCancelActions neededAtleastPerOrder 0
+                  equityInWalletAfterBuyOrds = equityFromValue $ valueInWalletAfterCancelActions `valueMinus` mtimesDefault actualNumNewBuyOrders neededAtleastPerOrder
 
-          availableBuyBudget = max 0 (tvBuyBudget - fromIntegral lockedLovelaces)
-          availableSellBudget = max 0 (tvSellBudget - fromIntegral lockedTokens)
-          numNewBuyOrders = availableBuyBudget `quot` tvBuyMinVol
-          numNewSellOrders = availableSellBudget `quot` tvSellMinVol
-          adaOverhead = valueFromLovelace 5_000_000
-          subtractTillZero :: GYValue -> GYValue -> Natural -> Natural
-          subtractTillZero val sub acc = if val `valueGreaterOrEqual` sub then subtractTillZero (val `valueMinus` sub) sub (acc + 1) else acc
-      -- TODO: To subtract from `buyVol` pertaining to order cancellations? Likewise for `sellVol`.
-      -- TODO: Abstract out both buy order actions & sell order actions to a single function.
-      (newBuyOrders, equityInWalletAfterBuyOrds) ←
-        if tvBuyVolThreshold <= fromIntegral buyVol || numNewBuyOrders == 0
-          then pure ([], equityInWalletAfterCancelActions)
-          else do
-            let tokensToOfferPerOrder = availableBuyBudget `quot` numNewBuyOrders
-                neededAtleastPerOrder = valueFromLovelace (ceiling $ toRational tokensToOfferPerOrder * (1 + makerFeeRatio)) <> adaOverhead
-                neededAtleast = stimes numNewBuyOrders neededAtleastPerOrder
-                valueInWalletAfterCancelActions = equityToValue equityInWalletAfterCancelActions
-                valueSufficient = valueInWalletAfterCancelActions `valueGreaterOrEqual` neededAtleast
-                actualNumNewBuyOrders = if valueSufficient then numNewBuyOrders else fromIntegral $ subtractTillZero valueInWalletAfterCancelActions neededAtleastPerOrder 0
-                equityInWalletAfterBuyOrds = equityFromValue $ valueInWalletAfterCancelActions `valueMinus` mtimesDefault actualNumNewBuyOrders neededAtleastPerOrder
+              unless valueSufficient $ logWarn providers $ printf "Bot has to place %d buy order(s), but lack funds, total balance (excluding collateral) should be at least: %s\n but available funds are: %s.\n Only placing %d buy order(s)." numNewBuyOrders (showEquity (equityFromValue neededAtleast) tokensSet) (showEquity equityInWalletAfterCancelActions tokensSet) actualNumNewBuyOrders
 
-            unless valueSufficient $ logWarn providers $ printf "Bot has to place %d buy order(s), but lack funds, total balance (excluding collateral) should be at least: %s\n but available funds are: %s.\n Only placing %d buy order(s)." numNewBuyOrders (showEquity (equityFromValue neededAtleast) tokensSet) (showEquity equityInWalletAfterCancelActions tokensSet) actualNumNewBuyOrders
+              pure
+                ( buildNewUserOrders
+                    scSpread
+                    (mmToken, mmtLovelace)
+                    mp
+                    (fromIntegral tokensToOfferPerOrder)
+                    (fromIntegral actualNumNewBuyOrders)
+                    True,
+                  equityInWalletAfterBuyOrds
+                )
 
-            pure
-              ( buildNewUserOrders
+        newSellOrders <-
+          if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
+            then pure []
+            else do
+              let tokensToOfferPerOrder = availableSellBudget `quot` numNewSellOrders
+                  neededAtleastPerOrder = valueSingleton (mmtAc mmToken) (ceiling $ toRational tokensToOfferPerOrder * (1 + makerFeeRatio)) <> adaOverhead
+                  neededAtleast = stimes numNewSellOrders neededAtleastPerOrder
+                  valueInWalletAfterBuyOrds = equityToValue equityInWalletAfterBuyOrds
+                  valueSufficient = valueInWalletAfterBuyOrds `valueGreaterOrEqual` neededAtleast
+                  actualNumNewSellOrders = if valueSufficient then numNewSellOrders else fromIntegral $ subtractTillZero valueInWalletAfterBuyOrds neededAtleastPerOrder 0
+
+              unless valueSufficient $ logWarn providers $ printf "Bot has to place %d sell order(s), but lack funds, total balance (excluding collateral & value reserved for buy order(s)) should be at least: %s\n but available funds are: %s.\n Only placing %d sell order(s)." numNewSellOrders (showEquity (equityFromValue neededAtleast) tokensSet) (showEquity equityInWalletAfterBuyOrds tokensSet) actualNumNewSellOrders
+              pure
+                $ buildNewUserOrders
                   scSpread
-                  (mmToken, mmtLovelace)
+                  (mmtLovelace, mmToken)
                   mp
-                  (fromIntegral tokensToOfferPerOrder)
-                  (fromIntegral actualNumNewBuyOrders)
-                  True,
-                equityInWalletAfterBuyOrds
-              )
+                  (fromIntegral $ availableSellBudget `quot` numNewSellOrders)
+                  (fromIntegral actualNumNewSellOrders)
+                  False
+        pure $ newBuyOrders <> newSellOrders
 
-      newSellOrders ←
-        if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
-          then pure []
-          else do
-            let tokensToOfferPerOrder = availableSellBudget `quot` numNewSellOrders
-                neededAtleastPerOrder = valueSingleton (mmtAc mmToken) (ceiling $ toRational tokensToOfferPerOrder * (1 + makerFeeRatio)) <> adaOverhead
-                neededAtleast = stimes numNewSellOrders neededAtleastPerOrder
-                valueInWalletAfterBuyOrds = equityToValue equityInWalletAfterBuyOrds
-                valueSufficient = valueInWalletAfterBuyOrds `valueGreaterOrEqual` neededAtleast
-                actualNumNewSellOrders = if valueSufficient then numNewSellOrders else fromIntegral $ subtractTillZero valueInWalletAfterBuyOrds neededAtleastPerOrder 0
+      let placeUserActions = uaFromOnlyPlaces placeOrderActions
+          cancelUserActions = uaFromOnlyCancels cancelOrderActions
+          totalEquity = equityInWallet <> equityInOrders
 
-            unless valueSufficient $ logWarn providers $ printf "Bot has to place %d sell order(s), but lack funds, total balance (excluding collateral & value reserved for buy order(s)) should be at least: %s\n but available funds are: %s.\n Only placing %d sell order(s)." numNewSellOrders (showEquity (equityFromValue neededAtleast) tokensSet) (showEquity equityInWalletAfterBuyOrds tokensSet) actualNumNewSellOrders
-            pure
-              $ buildNewUserOrders
-                scSpread
-                (mmtLovelace, mmToken)
-                mp
-                (fromIntegral $ availableSellBudget `quot` numNewSellOrders)
-                (fromIntegral actualNumNewSellOrders)
-                False
-      pure $ newBuyOrders <> newSellOrders
+      -- This 3 logs can be used for metrics, don't update without making sure it's okay to do so
+      logInfo providers $ "Equity in Orders: " ++ showEquity equityInOrders tokensSet
+      logInfo providers $ "Equity in Wallet: " ++ showEquity equityInWallet tokensSet
+      logInfo providers $ "Total Equity: " ++ showEquity totalEquity tokensSet
+      logInfo providers $ "Total Equity normalized into ADA: " ++ showTokenAmount mmtLovelace (fromIntegral $ normalizeEquity totalEquity (M.fromList [(GYLovelace, Price 1), (mmtAc mmToken, mp)]))
 
-    let placeUserActions = uaFromOnlyPlaces placeOrderActions
-        cancelUserActions = uaFromOnlyCancels cancelOrderActions
-        totalEquity = equityInWallet <> equityInOrders
+      logDebug providers $ "Place Actions: " ++ show placeOrderActions
+      logDebug providers $ "Cancel Actions: " ++ show cancelOrderActions
 
-    -- This 3 logs can be used for metrics, don't update without making sure it's okay to do so
-    logInfo providers $ "Equity in Orders: " ++ showEquity equityInOrders tokensSet
-    logInfo providers $ "Equity in Wallet: " ++ showEquity equityInWallet tokensSet
-    logInfo providers $ "Total Equity: " ++ showEquity totalEquity tokensSet
-    logInfo providers $ "Total Equity normalized into ADA: " ++ showTokenAmount mmtLovelace (fromIntegral $ normalizeEquity totalEquity (M.fromList [(GYLovelace, Price 1), (mmtAc mmToken, mp)]))
+      logInfo providers $ unlines ("Orders being placed:" : map logPlaceAction placeOrderActions)
+      logInfo providers $ unlines ("Orders being canceled:" : map (show . poiRef . coaPoi) cancelOrderActions)
+      logInfo providers "----------------- FINISHED STRATEGY ---------------"
 
-    logDebug providers $ "Place Actions: " ++ show placeOrderActions
-    logDebug providers $ "Cancel Actions: " ++ show cancelOrderActions
-
-    logInfo providers $ unlines ("Orders being placed:" : map logPlaceAction placeOrderActions)
-    logInfo providers $ unlines ("Orders being canceled:" : map (show . poiRef . coaPoi) cancelOrderActions)
-    logInfo providers "----------------- FINISHED STRATEGY ---------------"
-
-    return $ placeUserActions <> cancelUserActions
-   where
-    buildNewUserOrders
-      :: Rational
-      -> (MMToken, MMToken)
-      -> Price
-      -> Natural
-      -> Natural
-      -> Bool
-      -> [PlaceOrderAction]
-    buildNewUserOrders delta' (ask, off) p tokenQ nOrders toInverse =
-      let p' = getPrice p
-          poi n =
-            let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 else 1) * delta') * p'
-             in PlaceOrderAction
-                  { poaOfferedAsset = mmtAc off,
-                    poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,
-                    poaAskedAsset = mmtAc ask,
-                    poaPrice = rationalFromGHC $ if toInverse then denominator newMPrice % numerator newMPrice else newMPrice
-                  }
-       in if nOrders == 0 then [] else map poi [0 .. (nOrders - 1)] -- `nOrders` has type `Natural` thus subtracting from zero can give arithmetic exception.
-    getEquityFromOrder :: (MMTokenPair, PartialOrderInfo) -> Equity
-    getEquityFromOrder (_mmtp, poi) = getOrderOwnFunds poi & equityFromValue
+      return $ placeUserActions <> cancelUserActions
      where
-      -- \| Note that at any moment, an order UTxO contains:-
-      --                  * An NFT.
-      --                  * Remaining offered tokens.
-      --                  * Payment for tokens consumed.
-      --                  * Initial deposit.
-      --                  * Collected fees.
-      --
-      getOrderOwnFunds :: PartialOrderInfo -> GYValue
-      getOrderOwnFunds PartialOrderInfo {..} =
-        let toSubtract = valueSingleton (GYToken poiNFTCS poiNFT) 1 <> poiGetContainedFeeValue poi
-         in poiUTxOValue `valueMinus` toSubtract
+      buildNewUserOrders
+        :: Rational
+        -> (MMToken, MMToken)
+        -> Price
+        -> Natural
+        -> Natural
+        -> Bool
+        -> [PlaceOrderAction]
+      buildNewUserOrders delta' (ask, off) p tokenQ nOrders toInverse =
+        let p' = getPrice p
+            poi n =
+              let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 else 1) * delta') * p'
+               in PlaceOrderAction
+                    { poaOfferedAsset = mmtAc off,
+                      poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,
+                      poaAskedAsset = mmtAc ask,
+                      poaPrice = rationalFromGHC $ if toInverse then denominator newMPrice % numerator newMPrice else newMPrice
+                    }
+         in if nOrders == 0 then [] else map poi [0 .. (nOrders - 1)] -- `nOrders` has type `Natural` thus subtracting from zero can give arithmetic exception.
+      getEquityFromOrder :: (MMTokenPair, PartialOrderInfo) -> Equity
+      getEquityFromOrder (_mmtp, poi) = getOrderOwnFunds poi & equityFromValue
+       where
+        -- \| Note that at any moment, an order UTxO contains:-
+        --                  * An NFT.
+        --                  * Remaining offered tokens.
+        --                  * Payment for tokens consumed.
+        --                  * Initial deposit.
+        --                  * Collected fees.
+        --
+        getOrderOwnFunds :: PartialOrderInfo -> GYValue
+        getOrderOwnFunds PartialOrderInfo {..} =
+          let toSubtract = valueSingleton (GYToken poiNFTCS poiNFT) 1 <> poiGetContainedFeeValue poi
+           in poiUTxOValue `valueMinus` toSubtract
 
-    getOrdersLockedValue :: MMTokenPair -> MMToken -> [(MMTokenPair, PartialOrderInfo)] -> Natural
-    getOrdersLockedValue mmtp st orders =
-      let relevantOfferedAc = mmtAc st
-          relevantOrders = filter (\(oStp, oPoi) -> oStp == mmtp && relevantOfferedAc == poiOfferedAsset oPoi) orders
-       in sum $ map (poiOfferedAmount . snd) relevantOrders
+      getOrdersLockedValue :: MMTokenPair -> MMToken -> [(MMTokenPair, PartialOrderInfo)] -> Natural
+      getOrdersLockedValue mmtp st orders =
+        let relevantOfferedAc = mmtAc st
+            relevantOrders = filter (\(oStp, oPoi) -> oStp == mmtp && relevantOfferedAc == poiOfferedAsset oPoi) orders
+         in sum $ map (poiOfferedAmount . snd) relevantOrders
 
-    logInfo, logDebug, logWarn :: GYProviders -> String -> IO ()
-    logInfo providers = gyLogInfo providers logNS
-    logDebug providers = gyLogDebug providers logNS
-    logWarn providers = gyLogWarning providers logNS
+      logInfo, logDebug, logWarn :: GYProviders -> String -> IO ()
+      logInfo providers = gyLogInfo providers logNS
+      logDebug providers = gyLogDebug providers logNS
+      logWarn providers = gyLogWarning providers logNS
 
-    logPlaceAction :: PlaceOrderAction -> String
-    logPlaceAction PlaceOrderAction {..} =
-      let price = (fromRational (rationalToGHC poaPrice) :: Double)
-          adjustedPrice = 1 / price
-       in unwords
-            [ "Selling",
-              show poaOfferedAmount,
-              prettyAc poaOfferedAsset,
-              "for",
-              show price,
-              prettyAc poaAskedAsset,
-              "each",
-              "(inverted price:",
-              show adjustedPrice,
-              ")"
-            ]
-    logMaestroMarketInfo :: Price -> String
-    logMaestroMarketInfo price =
-      unwords
-        [ "Price for:",
-          prettyAc $ mmtAc mmToken,
-          "is",
-          show (fromRational (getPrice price) :: Double),
-          "lovelaces"
-        ]
+      logPlaceAction :: PlaceOrderAction -> String
+      logPlaceAction PlaceOrderAction {..} =
+        let price = (fromRational (rationalToGHC poaPrice) :: Double)
+            adjustedPrice = 1 / price
+         in unwords
+              [ "Selling",
+                show poaOfferedAmount,
+                prettyAc poaOfferedAsset,
+                "for",
+                show price,
+                prettyAc poaAskedAsset,
+                "each",
+                "(inverted price:",
+                show adjustedPrice,
+                ")"
+              ]
+      logMarketInfo :: Price -> String
+      logMarketInfo price =
+        unwords
+          [ "Price for:",
+            prettyAc $ mmtAc mmToken,
+            "is",
+            show (fromRational (getPrice price) :: Double),
+            "lovelaces"
+          ]
 
-    prettyAc :: GYAssetClass -> String
-    prettyAc GYLovelace     = "lovelaces"
-    prettyAc (GYToken _ tn) = "indivisible of " ++ show tn
+      prettyAc :: GYAssetClass -> String
+      prettyAc GYLovelace     = "lovelaces"
+      prettyAc (GYToken _ tn) = "indivisible of " ++ show tn
 
 ordersToBeRemoved :: Price -> Rational -> [(MMTokenPair, PartialOrderInfo)] -> [(MMTokenPair, PartialOrderInfo)]
 ordersToBeRemoved price cancelLimitSpread = filter (orderIsToBeRemoved price cancelLimitSpread)
@@ -361,3 +393,7 @@ orderIsToBeRemoved mPrice cancelLimitSpread (mmtp, poi) =
    in case mkOrderInfo oap poi of
         SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
         SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (cancelLimitSpread * marketPrice)
+
+flip5 :: (a -> b -> c -> d -> e -> r) -> (b -> c -> d -> e -> a -> r)
+flip5 f = \b c d e a -> f a b c d e
+

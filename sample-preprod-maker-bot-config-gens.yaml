@@ -62,8 +62,16 @@ mbc_price_config:
 # Please see description following this sample for details regarding `mbc_strategy_config` field.
 mbc_strategy_config:
   sc_spread:
-    numerator: 1
-    denominator: 100
+    # Can simple write
+    # numerator: 1
+    # denominator: 100
+    # To specify same spread for both sell and buy side. Or can individually specify for each like done below.
+    sell_side_spread:
+      numerator: 2
+      denominator: 100
+    buy_side_spread:
+      numerator: 1
+      denominator: 100
   sc_token_volume:
     tv_sell_min_vol: 1000000000
     tv_buy_min_vol: 2000000000

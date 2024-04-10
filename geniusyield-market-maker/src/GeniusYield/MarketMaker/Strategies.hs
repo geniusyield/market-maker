@@ -187,7 +187,7 @@ filterOwnOrders mmts users allOrders =
 
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
-  StrategyConfig { .. }
+  sc@StrategyConfig { .. }
   pp
   user
   mmToken = do
@@ -196,6 +196,8 @@ fixedSpreadVsMarketPriceStrategy
         userAddr = addrUser nid user
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
+
+    logInfo providers $ "Strategy configuration: " <> show  sc
 
     mp ← getMaestroPrice pp mmTokenPair
 

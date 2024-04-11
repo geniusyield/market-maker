@@ -1,6 +1,6 @@
 cabal-version:   3.4
 name:            geniusyield-market-maker
-version:         0.2.1
+version:         0.3.0
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 synopsis:
@@ -128,6 +128,7 @@ executable geniusyield-market-maker-exe
     GeniusYield.MarketMaker.MakerBotConfig
     GeniusYield.MarketMaker.Orphans
     GeniusYield.MarketMaker.Prices
+    GeniusYield.MarketMaker.Spread
     GeniusYield.MarketMaker.Strategies
     GeniusYield.MarketMaker.User
     GeniusYield.MarketMaker.Utils

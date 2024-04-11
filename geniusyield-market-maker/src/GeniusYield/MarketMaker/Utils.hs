@@ -1,6 +1,7 @@
 module GeniusYield.MarketMaker.Utils where
 
 import qualified Cardano.Api                      as Api
+import           Data.Aeson                       (camelTo2)
 import qualified Data.Text                        as Text
 import           GeniusYield.Api.Dex.PartialOrder (PORefs)
 import           GeniusYield.Imports              (coerce, first, (&))
@@ -17,6 +18,9 @@ import           PlutusLedgerApi.V1.Value         (AssetClass)
 import           PlutusLedgerApi.V2               (Address)
 import           Ply                              (ScriptRole (..), TypedScript)
 import           Unsafe.Coerce                    (unsafeCoerce)
+
+camelToSnake :: String -> String
+camelToSnake = camelTo2 '_'
 
 pkhUser :: User -> GYPaymentKeyHash
 pkhUser User {uSKey} = case getSecret uSKey of

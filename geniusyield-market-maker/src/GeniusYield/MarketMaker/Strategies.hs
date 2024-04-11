@@ -39,6 +39,7 @@ import           GeniusYield.MarketMaker.Constants         (logNS,
                                                             makerFeeRatio)
 import           GeniusYield.MarketMaker.Equity
 import           GeniusYield.MarketMaker.Prices
+import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.User              (User (..))
 import           GeniusYield.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (Connection (..))
@@ -122,7 +123,7 @@ mkPreemptiveCancelSpreadRatio n =
   else Left "sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
 
 data StrategyConfig = StrategyConfig
-  { scSpread                      :: !Rational,
+  { scSpread                      :: !Spread,
     scPriceCheckProduct           :: !Integer,
     scCancelThresholdProduct      :: !Integer,
     scTokenVolume                 :: !TokenVol,
@@ -186,7 +187,7 @@ filterOwnOrders mmts users allOrders =
 
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
-  StrategyConfig { .. }
+  sc@StrategyConfig { .. }
   pp
   user
   mmToken = do
@@ -195,6 +196,8 @@ fixedSpreadVsMarketPriceStrategy
         userAddr = addrUser nid user
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
+
+    logInfo providers $ "Strategy configuration: " <> show  sc
 
     mp ← getMaestroPrice pp mmTokenPair
 
@@ -213,8 +216,8 @@ fixedSpreadVsMarketPriceStrategy
               scPreemptiveCancelSpreadRatio' = unPreemptiveCancelSpreadRatio $ fromMaybe 0 scPreemptiveCancelSpreadRatio
               priceCrosses (toOAPair -> oap, poi) =
                 case mkOrderInfo oap poi of
-                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price <= mp' * (1 + scSpread * scPreemptiveCancelSpreadRatio')
-                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price >= mp' * (1 - scSpread * scPreemptiveCancelSpreadRatio')
+                  SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price <= mp' * (1 + sellSideSpread scSpread * scPreemptiveCancelSpreadRatio')
+                  SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price >= mp' * (1 - buySideSpread scSpread * scPreemptiveCancelSpreadRatio')
           in
             nub $
                  -- Cancel placed orders which are crossed by market price.
@@ -322,17 +325,17 @@ fixedSpreadVsMarketPriceStrategy
     return $ placeUserActions <> cancelUserActions
    where
     buildNewUserOrders
-      :: Rational
+      :: Spread
       -> (MMToken, MMToken)
       -> Price
       -> Natural
       -> Natural
       -> Bool
       -> [PlaceOrderAction]
-    buildNewUserOrders delta' (ask, off) p tokenQ nOrders toInverse =
+    buildNewUserOrders _delta@Spread {..} (ask, off) p tokenQ nOrders toInverse =
       let p' = getPrice p
           poi n =
-            let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 else 1) * delta') * p'
+            let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 * buySideSpread else sellSideSpread)) * p'
              in PlaceOrderAction
                   { poaOfferedAsset = mmtAc off,
                     poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,
@@ -396,13 +399,13 @@ fixedSpreadVsMarketPriceStrategy
     prettyAc GYLovelace     = "lovelaces"
     prettyAc (GYToken _ tn) = "indivisible of " ++ show tn
 
-ordersToBeRemoved :: Price -> Rational -> [(MMTokenPair, PartialOrderInfo)] -> [(MMTokenPair, PartialOrderInfo)]
+ordersToBeRemoved :: Price -> Spread -> [(MMTokenPair, PartialOrderInfo)] -> [(MMTokenPair, PartialOrderInfo)]
 ordersToBeRemoved price cancelLimitSpread = filter (orderIsToBeRemoved price cancelLimitSpread)
 
-orderIsToBeRemoved :: Price -> Rational -> (MMTokenPair, PartialOrderInfo) -> Bool
-orderIsToBeRemoved mPrice cancelLimitSpread (mmtp, poi) =
+orderIsToBeRemoved :: Price -> Spread -> (MMTokenPair, PartialOrderInfo) -> Bool
+orderIsToBeRemoved mPrice _cancelLimitSpread@Spread {..} (mmtp, poi) =
   let marketPrice = getPrice mPrice
       oap = toOAPair mmtp
    in case mkOrderInfo oap poi of
-        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
-        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (cancelLimitSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (buySideSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (sellSideSpread * marketPrice)

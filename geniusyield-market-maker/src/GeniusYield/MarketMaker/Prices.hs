@@ -70,7 +70,6 @@ data PriceCommonCfg = PriceCommonCfg
   { pccCommonResolution   :: !CommonResolution,
     pccNetworkId          :: !GYNetworkId,
     pccPriceDiffThreshold :: !Double
-    -- pccOrderBookConfig    :: !(Connection, DEXInfo)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
@@ -120,21 +119,13 @@ data MaestroPairOverride = MaestroPairOverride
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
-data MaestroPP = MaestroPP
-  { mppEnv        :: !(MaestroEnv 'V1),
-    mppResolution :: !(Maybe Maestro.Resolution),
-    mppDex        :: !Dex,
-    mppOverride   :: !(Maybe MaestroPairOverride)
-  }
-
 data PricesProvidersAggregator = PPA
   { ppaCommonCfg     :: !PriceCommonCfg,
     ppaPricesCluster :: !(NE.NonEmpty PricesProviderCfg)
   }
 
 data PricesProviders = PP
-  { maestroPP          :: !MaestroPP,
-    pricesAggregatorPP :: !PricesProvidersAggregator,
+  { pricesAggregatorPP :: !PricesProvidersAggregator,
     orderBookPP        :: !(Connection, DEXInfo)
   }
 
@@ -145,8 +136,7 @@ buildPP
   -> IO PricesProviders
 buildPP c dex PriceConfigV2 {..} =
   PP
-    <$> ppMaestro
-    <*> ppPricesAggregator
+    <$> ppPricesAggregator
     <*> return (c, dex)
  where
   ppPricesAggregator :: IO PricesProvidersAggregator
@@ -154,24 +144,14 @@ buildPP c dex PriceConfigV2 {..} =
     { ppaCommonCfg     = pcPriceCommonCfg,
       ppaPricesCluster = pcPricesProviderCfgs
     }
-   
-  maestroPP' = head [ppc | ppc@(MaestroConfig {}) <- NE.toList pcPricesProviderCfgs]
 
-  ppMaestro :: IO MaestroPP
-  ppMaestro = do
-    env <- networkIdToMaestroEnv (coerce . mcApiKey $ maestroPP') $ pccNetworkId pcPriceCommonCfg
-    return
-      MaestroPP
-        { mppEnv = env,
-          mppResolution = mcResolutionOverride maestroPP',
-          mppDex = mcDex maestroPP',
-          mppOverride = mcPairOverride maestroPP'
-        }
-
-data PriceError = PriceUnavailable | PriceIsZero | PriceMismatch
+data SourceError = SourceUnavailable
   deriving stock Show
 
-newtype GetQuota = GetQuota { getQuota :: MMTokenPair -> IO (Either PriceError Price) }
+data PriceError = PriceIsZero | PriceMismatch | OutrageousPriceMismatch | PriceSourceFail Price
+  deriving stock Show
+
+newtype GetQuota = GetQuota { getQuota :: MMTokenPair -> IO (Either SourceError Price) }
 
 buildGetQuota :: PriceCommonCfg -> PricesProviderCfg -> GetQuota
 
@@ -242,25 +222,22 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp -> case
           | mmtpCurrency mmtp  == mmtLovelace = getAssetPrice . mmtAc . mmtpCommodity $ mmtp
           | mmtpCommodity mmtp == mmtLovelace = do
               currencyPrice <- getAssetPrice . mmtAc . mmtpCurrency $ mmtp 
-              return $ invPrice currencyPrice
+              return $ Right invPrice <*> currencyPrice
           | otherwise = throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
           where
-            getAssetPrice :: GYAssetClass -> IO Price
+            getAssetPrice :: GYAssetClass -> IO (Either SourceError Price)
             getAssetPrice gyAsset = case gyAsset of
-                GYLovelace   -> return $ Price (1 % 1)
+                GYLovelace   -> return . Right $ Price (1 % 1)
                 GYToken cs _ -> do
                   let unit     = show cs
                       interval = show res
                   ohlcvInfo <- priceFromTaptools (Just unit) (Just interval) (Just 1) env
                   case ohlcvInfo of
-                    Left e         -> throwIO e
-                    Right ttOHLCVs -> return (Price . toRational . close . head $ ttOHLCVs)
-                    
-    p <- priceFromTokenPair
-    if getPrice p == 0 then return . Left  $ PriceIsZero
-                       else return . Right $ p
+                    Left _         -> return (Left SourceUnavailable)
+                    Right ttOHLCVs -> return (Right . Price . toRational . close . head $ ttOHLCVs)
+    priceFromTokenPair
 
-  _         -> return . Left $ PriceUnavailable
+  _         -> throwIO $ userError "Price unavailable."
 
 buildGetQuotas :: PricesProviders -> [GetQuota]
 buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> NE.toList ppaPricesCluster
@@ -401,68 +378,4 @@ data PriceConfig = PriceConfig
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
-
-getMaestroPrice
-  :: PricesProviders
-  -> MMTokenPair
-  -> IO Price
-getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
-  (pairName, commodityIsA) <- case mppOverride of
-    -- We have to override with given details.
-    Just (MaestroPairOverride {..}) -> do
-      pure (pack mpoPair, mpoCommodityIsFirst)
-    -- We are given commodity token and need to find pair name.
-    Nothing -> do
-      allDexPairs <- dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
-      -- TODO: Remove it once Maestro is able to return for it.
-      let adaUsdmPair =
-            DexPairInfo
-              { dexPairInfoCoinBPolicy = "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad",
-                dexPairInfoCoinBAssetName = "0014df105553444d",
-                dexPairInfoCoinAPolicy = "",
-                dexPairInfoCoinAAssetName = "",
-                dexPairInfoPair = "ADA-USDM"
-              }
-      let go []           = throwIO MaestroPairNotFound
-          go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo dpi
-      first dexPairInfoPair <$> go (adaUsdmPair : allDexPairs)
-
-  let pair = TaggedText pairName
-
-  ohlInfo <- handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair mppResolution (Just Descending)
-
-  let info = head ohlInfo
-      curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
-      comPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
-      precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
-
-      price =
-        if commodityIsA
-          then ohlcCandleInfoCoinBClose info
-          else ohlcCandleInfoCoinAClose info
-
-      adjustedPrice = price * precisionDiff
-
-  return $ Price (toRational adjustedPrice)
- where
-  isRelevantPairInfo :: DexPairInfo -> Maybe (DexPairInfo, Bool)
-  isRelevantPairInfo dpi@DexPairInfo {..} =
-    ( (dpi, False)
-        <$ findMatchingMMTP
-          (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
-          (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
-    )
-      <|> ( (dpi, True)
-              <$ findMatchingMMTP
-                (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
-                (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
-          )
-
-  findMatchingMMTP :: (TokenName, PolicyId) -> (TokenName, PolicyId) -> Maybe MMTokenPair
-  findMatchingMMTP tokenA tokenB = fromRight Nothing $ do
-    assetClassA <- assetClassFromMaestro tokenA
-    assetClassB <- assetClassFromMaestro tokenB
-    Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
-
-  functionLocationIdent = "getMaestroPrice"
 

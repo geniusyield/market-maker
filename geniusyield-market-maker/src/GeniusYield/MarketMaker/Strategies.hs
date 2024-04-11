@@ -183,7 +183,6 @@ fixedSpreadVsMarketPriceStrategy
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
 
     flip4 withPriceEstimate pp user mmToken $ \mp -> do
-      -- mp <- getMaestroPrice pp mmTokenPair
       logInfo providers $ logMarketInfo mp
 
       (bp, maob) <- getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold

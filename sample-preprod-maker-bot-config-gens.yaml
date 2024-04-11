@@ -81,6 +81,9 @@ mbc_strategy_config:
     tv_buy_vol_threshold: 20000000000
   sc_price_check_product: 9
   sc_cancel_threshold_product: 4
+  sc_preemptive_cancel_spread_ratio:
+    numerator: 1
+    denominator: 10
 # Token details.
 mbc_token:
   # Asset class represented as concatenation of currency symbol and asset name with dot separator.

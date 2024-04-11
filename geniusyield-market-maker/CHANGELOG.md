@@ -1,11 +1,8 @@
 # Revision history for geniusyield-market-maker
 
-## 0.4.0 -- 2024-04-10
+## 0.3.0 -- 2024-04-11
 
 * Adds ability to specify different spread for each (sell & buy) side. The change is backwards compatible with respect to configuration.
-
-## 0.3.0 -- 2024-02-23
-
 * `sc_preemptive_cancel_spread_ratio` replaces `sc_cancel_window_ratio`, for more information about it, see documentation.
 
 ## 0.2.1 -- 2024-02-22

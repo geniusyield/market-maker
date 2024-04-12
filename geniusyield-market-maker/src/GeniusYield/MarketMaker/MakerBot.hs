@@ -146,6 +146,7 @@ executeStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provide
       
       UACSpooked2 → do
         cancelAllOrders mb netId providers di
+        
         gyLogWarning providers logNS "Closed all orders due to outrageous price mismatch among Prices Providers"
         threadDelay priceMismatchDelay2
         

@@ -162,10 +162,18 @@ priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUn
 -------------------------------------------------------------------------------
 
 mean :: Fractional a => [a] -> a
+mean []     = error "mean of empty sample is undefined"
 mean sample = let n = fromIntegral . length $ sample
               in  sum sample / n
 
 relStdDev :: [Double] -> Double
-relStdDev sample = let avg = mean sample
-                       sqs = (\x -> (x - avg) ** 2) <$> sample
-                   in  (sqrt . mean $ sqs) / avg
+relStdDev sample = case sample of
+  []       -> error "std dev of empty sample is undefined"
+  [_]      -> 0
+  [x1, x2] -> sqrt 2 * abs (x1 - x2) / (x1 + x2)
+  xs       -> relStdDev' xs
+
+relStdDev' :: [Double] -> Double
+relStdDev' sample = let avg = mean sample
+                        sqs = (\x -> (x - avg) ** 2) <$> sample
+                    in  (sqrt . mean $ sqs) / avg

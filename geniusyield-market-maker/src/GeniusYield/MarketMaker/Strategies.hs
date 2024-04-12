@@ -30,7 +30,6 @@ import           GeniusYield.OrderBot.DataSource.Providers (Connection (..))
 import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
                                                             OrderBook (..),
                                                             Orders (unOrders),
-                                                            populateOrderBook,
                                                             withEachAsset)
 import           GeniusYield.OrderBot.Types
 import           GeniusYield.TxBuilder                     (GYTxQueryMonad (utxosAtAddress),
@@ -58,6 +57,8 @@ instance Monoid UserActions where
         uaCancels = []
       }
 
+data UserActionsController = UACNormal | UACSpooked1 | UACSpooked2
+
 uaFromOnlyPlaces :: [PlaceOrderAction]-> UserActions
 uaFromOnlyPlaces poas = mempty {uaPlaces = poas}
 
@@ -75,7 +76,7 @@ data PlaceOrderAction = PlaceOrderAction
 newtype CancelOrderAction = CancelOrderAction {coaPoi :: PartialOrderInfo}
   deriving stock (Show)
 
-type Strategy = PricesProviders -> User -> MMToken -> IO UserActions
+type Strategy = PricesProviders -> User -> MMToken -> IO (UserActions, UserActionsController)
 
 data StrategyConfig = StrategyConfig
   { scSpread                 :: !Rational,
@@ -141,31 +142,19 @@ filterOwnOrders mmts users allOrders =
       $ find ((==) poiOwnerKey . toPubKeyHash . pkhUser) users
 
 withPriceEstimate :: (Price -> IO UserActions) -> Strategy
-withPriceEstimate = withPriceEstimate' defaultPriceErrorHandling
-
-withPriceEstimate' :: (PriceError -> Strategy) -> (Price -> IO UserActions) -> Strategy
-withPriceEstimate' kErr k pp user mmt = do
+withPriceEstimate k pp _ mmt = do
   let mmTokenPair = mkMMTokenPair mmtLovelace mmt
+      (Connection _ providers, _) = orderBookPP pp
+
   pe <- priceEstimate pp mmTokenPair
   case pe of
-    Left  pErr -> kErr pErr pp user mmt
-    Right p    -> k p
-
-defaultPriceErrorHandling :: PriceError -> Strategy
-defaultPriceErrorHandling pErr pp user mmt = do
-  let mmTokenPair            = mkMMTokenPair mmtLovelace mmt
-      (c, dex)               = orderBookPP pp
-      Connection _ providers = c
-  
-  maob <- populateOrderBook c dex (dexPORefs dex) (map toOAPair [mmTokenPair])
-  
-  let ownOrdersPerUser   = getOwnOrders [mmTokenPair] [user] maob
-      allOwnOrders       = M.foldr (++) [] ownOrdersPerUser
-      cancelOrderActions = map (CancelOrderAction . snd) allOwnOrders
-
-  logWarn providers $ "Canceling all orders due to price mistmatch: " ++ (show pErr)
-  return $ mempty { uaCancels = cancelOrderActions }
-
+    Left (PriceSourceFail p) -> do
+      logWarn providers $ "One prices provider failed"  -- TODO: give details of failing provider
+      actions <- k p
+      return (actions, UACNormal)
+    Left PriceMismatch1      -> return (mempty, UACSpooked1)
+    Left PriceMismatch2      -> return (mempty, UACSpooked2)
+    Right p                  -> k p >>= \actions -> pure (actions, UACNormal)
  where
   logWarn :: GYProviders -> String -> IO ()
   logWarn providers = gyLogWarning providers logNS

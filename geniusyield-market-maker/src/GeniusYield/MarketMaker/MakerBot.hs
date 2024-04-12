@@ -26,20 +26,20 @@ import           System.Exit
 
 data MakerBot = MakerBot
   { -- | User.
-    mbUser  :: User,
+    mbUser  ∷ User,
     -- | Delay in microseconds between each iteration of execution strategy loop.
-    mbDelay :: Int,
+    mbDelay ∷ Int,
     -- | Non-ADA token as other pair of the token is assumed to be ADA.
-    mbToken :: MMToken
+    mbToken ∷ MMToken
   }
 
 -----------------------------------------------------------------------
 ---------------------------- ACTIONS ----------------------------------
 
 -- | Scan the chain for existing orders and cancel all of them in batches of 6.
-cancelAllOrders :: MakerBot -> GYNetworkId -> GYProviders -> DEXInfo -> IO ()
+cancelAllOrders ∷ MakerBot → GYNetworkId → GYProviders → DEXInfo → IO ()
 cancelAllOrders MakerBot {mbUser} netId providers di = do
-  let go :: [PartialOrderInfo] -> IO ()
+  let go ∷ [PartialOrderInfo] → IO ()
       go partialOrderInfos = do
         gyLogInfo providers logNS $ "---------- " ++ show (length partialOrderInfos) ++ " orders to cancel! -----------"
         when (null partialOrderInfos) $ do
@@ -47,7 +47,7 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
           exitSuccess
         let (batch, rest) = splitAt 6 partialOrderInfos
             userAddr = addrUser netId mbUser
-        txBody ←
+        txBody <-
           runGYTxMonadNode netId providers [userAddr] userAddr (uColl mbUser)
             $ runReaderT (cancelMultiplePartialOrders (dexPORefs di) batch) di
         let signedTx =
@@ -57,25 +57,25 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
         gyLogInfo providers logNS "---------- Done for the block! -----------"
         gyAwaitTxConfirmed providers awaitTxParams tid
         go rest
-  partialOrderInfos <- runGYTxQueryMonadNode netId providers $ runReaderT (partialOrders (dexPORefs di)) di
+  partialOrderInfos ← runGYTxQueryMonadNode netId providers $ runReaderT (partialOrders (dexPORefs di)) di
   let userPkh = pkhUser mbUser & toPubKeyHash
-      userPOIs = filter (\o -> poiOwnerKey o == userPkh) $ M.elems partialOrderInfos
+      userPOIs = filter (\o → poiOwnerKey o == userPkh) $ M.elems partialOrderInfos
   go userPOIs
 
-buildAndSubmitActions :: User -> GYProviders -> GYNetworkId -> UserActions -> DEXInfo -> IO ()
+buildAndSubmitActions ∷ User → GYProviders → GYNetworkId → UserActions → DEXInfo → IO ()
 buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip catches handlers $ do
   let userAddr = addrUser netId user
       placeActions = uaPlaces ua
       cancelActions = uaCancels ua
 
-  forM_ (chunksOf 6 cancelActions) $ \cancelChunk -> do
+  forM_ (chunksOf 6 cancelActions) $ \cancelChunk → do
     logInfo $ "Building for cancel action(s): " <> show cancelChunk
     txBody ← runGYTxMonadNode netId providers [userAddr] userAddr uColl $ flip runReaderT di $ cancelMultiplePartialOrders (dexPORefs di) (map coaPoi cancelChunk)
     buildCommon txBody
 
-  forM_ placeActions $ \pa@PlaceOrderAction {..} -> do
+  forM_ placeActions $ \pa@PlaceOrderAction {..} → do
     logInfo $ "Building for place action: " <> show pa
-    txBody ←
+    txBody <-
       runGYTxMonadNode netId providers [userAddr] userAddr uColl
         $ flip runReaderT di
         $ placePartialOrder
@@ -93,16 +93,16 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
   logInfo = gyLogInfo providers logNS
 
   handlers =
-    let handlerCommon :: Exception e => e -> IO ()
+    let handlerCommon ∷ Exception e => e → IO ()
         handlerCommon = logWarn . displayException
 
-        be :: BuildTxException -> IO ()
+        be ∷ BuildTxException → IO ()
         be = handlerCommon
 
-        se :: SubmitTxException -> IO ()
+        se ∷ SubmitTxException → IO ()
         se = handlerCommon
 
-        me :: GYTxMonadException -> IO ()
+        me ∷ GYTxMonadException → IO ()
         me = handlerCommon
      in [Handler be, Handler se, Handler me]
 
@@ -116,18 +116,39 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
     logInfo $ printf "Tx successfully seen on chain with %d confirmation(s)" numConfirms
 
 executeStrategy
-  :: Strategy
-  -> MakerBot
-  -> GYNetworkId
-  -> GYProviders
-  -> PricesProviders
-  -> DEXInfo
-  -> IO ()
-executeStrategy runStrategy MakerBot {mbUser, mbDelay, mbToken} netId providers pp di =
+  ∷ Strategy
+  → MakerBot
+  → GYNetworkId
+  → GYProviders
+  → PricesProviders
+  → DEXInfo
+  → IO ()
+executeStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId providers pp di = do
+  let cfg = ppaCommonCfg . pricesAggregatorPP $ pp
+      priceMismatchDelay1 = pccPriceDiffDelay1 cfg
+      priceMismatchDelay2 = pccPriceDiffDelay2 cfg
+  
   forever $ do
-    newActions ← runStrategy pp mbUser mbToken
+    (newActions, controller) ← runStrategy pp mbUser mbToken
 
-    buildAndSubmitActions mbUser providers netId newActions di
+    case controller of
+      UACNormal   → do
+        buildAndSubmitActions mbUser providers netId newActions di
+        
+        gyLogInfo providers logNS "---------- Done for the block! -----------"
+        threadDelay mbDelay
 
-    gyLogInfo providers logNS "---------- Done for the block! -----------"
-    threadDelay mbDelay
+      UACSpooked1 → do
+        cancelAllOrders mb netId providers di
+
+        gyLogInfo providers logNS "Closed all orders due to price mismatch among Prices Providers"
+        threadDelay priceMismatchDelay1
+      
+      UACSpooked2 → do
+        cancelAllOrders mb netId providers di
+        gyLogWarning providers logNS "Closed all orders due to outrageous price mismatch among Prices Providers"
+        threadDelay priceMismatchDelay2
+        
+        
+
+

@@ -158,19 +158,14 @@ priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUn
 
 
 -------------------------------------------------------------------------------
--- Standard Deviation
+-- Relative Standard Deviation
 -------------------------------------------------------------------------------
 
 mean :: Fractional a => [a] -> a
 mean sample = let n = fromIntegral . length $ sample
               in  sum sample / n
 
-stdDev :: [Double] -> Double
-stdDev sample = let avg = mean sample
-                    sqs = (\x -> (x - avg) ** 2) <$> sample
-                in  sqrt . mean $ sqs
-
 relStdDev :: [Double] -> Double
 relStdDev sample = let avg = mean sample
-                       sd  = stdDev sample
-                   in  sd / avg
+                       sqs = (\x -> (x - avg) ** 2) <$> sample
+                   in  (sqrt . mean $ sqs) / avg

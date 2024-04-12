@@ -8,9 +8,10 @@ import           Control.Arrow                             (Arrow (first),
 import           Control.Exception                         (Exception, throwIO,
                                                             try)
 import           Control.Monad                             ((<=<))
+import           Data.Aeson                                (parseJSON)
 import           Data.ByteString.Char8                     (unpack)
 import           Data.Coerce                               (coerce)
-import           Data.Either                               (fromRight, rights)
+import           Data.Either                               (fromRight, lefts, rights)
 import           Data.Fixed                                (Fixed (..),
                                                             showFixed)
 import           Data.Function                             ((&))
@@ -47,6 +48,7 @@ import           Maestro.Client.V1
 import           Maestro.Types.V1                          as Maestro
 import           Servant.Client                            (mkClientEnv)
 
+
 -- $setup
 --
 -- >>> :set -XOverloadedStrings
@@ -59,6 +61,17 @@ import           Servant.Client                            (mkClientEnv)
 -- Configuration
 -------------------------------------------------------------------------------
 
+-- | PriceConfigV1 is deprecated
+data PriceConfigV1 = PriceConfigV1
+  { pcApiKey     :: !(Confidential Text),
+    pcResolution :: !Resolution,
+    pcNetworkId  :: !GYNetworkId,
+    pcDex        :: !Dex,
+    pcOverride   :: !(Maybe MaestroPairOverride)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV1
+
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     :: !PriceCommonCfg,
     pcPricesProviderCfgs :: !(NE.NonEmpty PricesProviderCfg)
@@ -67,9 +80,11 @@ data PriceConfigV2 = PriceConfigV2
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
 
 data PriceCommonCfg = PriceCommonCfg
-  { pccCommonResolution   :: !CommonResolution,
-    pccNetworkId          :: !GYNetworkId,
-    pccPriceDiffThreshold :: !Double
+  { pccCommonResolution    :: !CommonResolution,
+    pccNetworkId           :: !GYNetworkId,
+    pccPriceDiffThreshold1 :: !Double,  -- triggers 'PriceMismatch'
+    pccPriceDiffThreshold2 :: !Double,  -- triggers 'OutrageousPriceMismatch'
+    pccPriceDiffWait1      :: !Integer  -- number of cycles to wait after price mismatch
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
@@ -87,6 +102,11 @@ data PricesProviderCfg =
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PricesProviderCfg
+
+data PriceConfig = PCVersion1 PriceConfigV1 | PCVersion2 PriceConfigV2  deriving stock Show
+
+instance FromJSON PriceConfig where
+  parseJSON v = (PCVersion1 <$> parseJSON v) <|> (PCVersion2 <$> parseJSON v)
 
 
 -------------------------------------------------------------------------------
@@ -132,19 +152,43 @@ data PricesProviders = PP
 buildPP
   :: Connection
   -> DEXInfo
-  -> PriceConfigV2
+  -> PriceConfig
   -> IO PricesProviders
-buildPP c dex PriceConfigV2 {..} =
+buildPP c dex pc =
   PP
-    <$> ppPricesAggregator
-    <*> return (c, dex)
+   <$> ppPricesAggregator
+   <*> return (c, dex)
  where
   ppPricesAggregator :: IO PricesProvidersAggregator
-  ppPricesAggregator = pure PPA
-    { ppaCommonCfg     = pcPriceCommonCfg,
-      ppaPricesCluster = pcPricesProviderCfgs
-    }
+  ppPricesAggregator = case pc of
+    PCVersion1 (PriceConfigV1 {..}) -> do
+      let pccNetworkId   = pcNetworkId
+          mcApiKey       = pcApiKey
+          mcDex          = pcDex
+          mcPairOverride = pcOverride
+      return PPA
+        { ppaCommonCfg = PriceCommonCfg
+          { pccCommonResolution   = CRes5m  -- unused
+          , pccNetworkId          = pccNetworkId
+          , pccPriceDiffThreshold1 = 1      -- unused
+          , pccPriceDiffThreshold2 = 1      -- unused
+          , pccPriceDiffWait1      = 0      -- unused
+          }
 
+        , ppaPricesCluster = NE.fromList [
+            MaestroConfig
+              { mcApiKey = mcApiKey
+              , mcResolutionOverride = Just pcResolution
+              , mcDex = mcDex
+              , mcPairOverride = mcPairOverride
+              } ]
+        }
+
+    PCVersion2 (PriceConfigV2 {..}) -> pure PPA
+      { ppaCommonCfg     = pcPriceCommonCfg,
+        ppaPricesCluster = pcPricesProviderCfgs
+      }
+  
 data SourceError = SourceUnavailable
   deriving stock Show
 
@@ -246,16 +290,20 @@ priceEstimate :: PricesProviders -> MMTokenPair -> IO (Either PriceError Price)
 priceEstimate pp mmtp = do
   let pproviders = buildGetQuotas pp
   eps <- mapM (\prov -> getQuota prov mmtp) pproviders
+
+  let hasSourceFailed = not . null $ [ s | s@SourceUnavailable <- lefts eps ]
   
   case rights eps of
     []   -> throwIO $ userError "Price not available from any provider."
     ps -> do
       let p   = Price . mean $ getPrice <$> ps
           rsd = relStdDev $ fromRational . getPrice <$> ps
-          ths = pccPriceDiffThreshold . ppaCommonCfg . pricesAggregatorPP $ pp
+          ths = pccPriceDiffThreshold1 . ppaCommonCfg . pricesAggregatorPP $ pp
       if rsd > ths
         then return . Left  $ PriceMismatch
-        else return . Right $ p
+        else if hasSourceFailed
+               then return (Left $ PriceSourceFail p)
+               else return . Right $ p
 
 
 -------------------------------------------------------------------------------
@@ -364,18 +412,4 @@ throwMspvApiError locationInfo =
 handleMaestroError :: Text -> Either MaestroError a -> IO a
 handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
-
--------------------------------------------------------------------------------
--- Deprecated
--------------------------------------------------------------------------------
-
-data PriceConfig = PriceConfig
-  { pcApiKey     :: !(Confidential Text),
-    pcResolution :: !Resolution,
-    pcNetworkId  :: !GYNetworkId,
-    pcDex        :: !Dex,
-    pcOverride   :: !(Maybe MaestroPairOverride)
-  }
-  deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfig
 

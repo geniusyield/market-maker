@@ -34,7 +34,7 @@ data MakerBotConfig = MakerBotConfig
     mbcDelay            ∷ !Int,
     mbcToken            ∷ !MMToken,
     mbcStrategyConfig   ∷ !StrategyConfig,
-    mbcPriceConfig      ∷ !PriceConfigV2
+    mbcPriceConfig      ∷ !PriceConfig
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MakerBotConfig

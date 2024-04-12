@@ -1,7 +1,22 @@
-module GeniusYield.MarketMaker.Strategies where
+module GeniusYield.MarketMaker.Strategies
+  ( UserActions (..)
+  , uaFromOnlyPlaces
+  , uaFromOnlyCancels
+  , PlaceOrderAction (..)
+  , CancelOrderAction (..)
+  , Strategy
+  , PreemptiveCancelSpreadRatio
+  , mkPreemptiveCancelSpreadRatio
+  , unPreemptiveCancelSpreadRatio
+  , StrategyConfig (..)
+  , TokenVol (..)
+  , getOwnOrders
+  , fixedSpreadVsMarketPriceStrategy
+  ) where
 
 import           Control.Applicative                       ((<|>))
 import           Control.Monad                             (unless)
+import           Data.Aeson                                (FromJSON (..))
 import           Data.Foldable
 import           Data.Function                             ((&))
 import           Data.Functor                              ((<&>))
@@ -19,11 +34,12 @@ import           GeniusYield.AnnSet.Internal               (orderInfo,
                                                             toAscList)
 import           GeniusYield.Api.Dex.PartialOrder          (PartialOrderInfo (..),
                                                             poiGetContainedFeeValue)
-import           GeniusYield.Imports                       (printf)
+import           GeniusYield.Imports                       (coerce, printf)
 import           GeniusYield.MarketMaker.Constants         (logNS,
                                                             makerFeeRatio)
 import           GeniusYield.MarketMaker.Equity
 import           GeniusYield.MarketMaker.Prices
+import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.User              (User (..))
 import           GeniusYield.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (Connection (..))
@@ -36,6 +52,9 @@ import           GeniusYield.TxBuilder                     (GYTxQueryMonad (utxo
                                                             runGYTxQueryMonadNode)
 import           GeniusYield.Types
 import           GHC.Natural                               (naturalFromInteger)
+
+-- $setup
+-- >>> import qualified Data.Aeson as Aeson
 
 data UserActions = UserActions
   { uaPlaces  :: [PlaceOrderAction],
@@ -78,12 +97,39 @@ newtype CancelOrderAction = CancelOrderAction {coaPoi :: PartialOrderInfo}
 
 type Strategy = PricesProviders -> User -> MMToken -> IO (UserActions, UserActionsController)
 
+newtype PreemptiveCancelSpreadRatio = PreemptiveCancelSpreadRatio { unPreemptiveCancelSpreadRatio :: Rational }
+  deriving stock Show
+  deriving newtype (ToJSON, Num, Eq, Ord)
+
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": 101, \"denominator\": 100}"
+-- Left "Error in $: sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
+--
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": 100, \"denominator\": 100}"
+-- Right (PreemptiveCancelSpreadRatio {unPreemptiveCancelSpreadRatio = 1 % 1})
+--
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": -1, \"denominator\": 100}"
+-- Left "Error in $: sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
+--
+-- >>> Aeson.eitherDecode @PreemptiveCancelSpreadRatio "{\"numerator\": 0, \"denominator\": 100}"
+-- Right (PreemptiveCancelSpreadRatio {unPreemptiveCancelSpreadRatio = 0 % 1})
+instance FromJSON PreemptiveCancelSpreadRatio where
+  parseJSON v = do
+    v' :: Rational <- parseJSON v
+    case mkPreemptiveCancelSpreadRatio v' of
+      Left s  -> fail s
+      Right a -> pure a
+
+mkPreemptiveCancelSpreadRatio :: Rational -> Either String PreemptiveCancelSpreadRatio
+mkPreemptiveCancelSpreadRatio n =
+  if n >= 0 && n <= 1 then Right $ coerce n
+  else Left "sc_preemptive_cancel_spread_ratio parameter must be b/w 0 and 1"
+
 data StrategyConfig = StrategyConfig
-  { scSpread                 :: !Rational,
-    scPriceCheckProduct      :: !Integer,
-    scCancelThresholdProduct :: !Integer,
-    scTokenVolume            :: !TokenVol,
-    scCancelWindowRatio      :: !(Maybe Rational)
+  { scSpread                      :: !Spread,
+    scPriceCheckProduct           :: !Integer,
+    scCancelThresholdProduct      :: !Integer,
+    scTokenVolume                 :: !TokenVol,
+    scPreemptiveCancelSpreadRatio :: !(Maybe PreemptiveCancelSpreadRatio)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] StrategyConfig
@@ -161,7 +207,7 @@ withPriceEstimate k pp _ mmt = do
 
 fixedSpreadVsMarketPriceStrategy :: StrategyConfig -> Strategy
 fixedSpreadVsMarketPriceStrategy
-  StrategyConfig { .. }
+  sc@StrategyConfig { .. }
   pp
   user
   mmToken = do
@@ -171,9 +217,9 @@ fixedSpreadVsMarketPriceStrategy
         cancelThreshold = fromInteger scCancelThresholdProduct * scSpread
         priceCheckThreshold = fromInteger scPriceCheckProduct * scSpread
 
-    flip4 withPriceEstimate pp user mmToken $ \mp -> do
-      logInfo providers $ logMarketInfo mp
+    logInfo providers $ "Strategy configuration: " <> show  sc
 
+    flip4 withPriceEstimate pp user mmToken $ \mp -> do
       (bp, maob) <- getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold
 
       ownUtxos <- runGYTxQueryMonadNode nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
@@ -197,8 +243,20 @@ fixedSpreadVsMarketPriceStrategy
                    ordersToBeRemoved mp cancelThreshold allOwnOrders
           cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
 
-          relevantMMTP = mkMMTokenPair mmtLovelace mmToken
-          mtInfo = M.lookup relevantMMTP bp
+          ordersToCancel =
+            let mp' = getPrice mp
+                scPreemptiveCancelSpreadRatio' = unPreemptiveCancelSpreadRatio $ fromMaybe 0 scPreemptiveCancelSpreadRatio
+                priceCrosses (toOAPair -> oap, poi) =
+                  case mkOrderInfo oap poi of
+                    SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price <= mp' * (1 + sellSideSpread scSpread * scPreemptiveCancelSpreadRatio')
+                    SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price >= mp' * (1 - buySideSpread scSpread * scPreemptiveCancelSpreadRatio')
+            in
+              nub $
+                   -- Cancel placed orders which are crossed by market price.
+                   filter priceCrosses allOwnOrders
+                <> -- And also cancel those which are "too away" from market price.
+                   ordersToBeRemoved mp cancelThreshold allOwnOrders
+          cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
 
           ownRemainingOrders = allOwnOrders \\ ordersToCancel
           lockedLovelaces = getOrdersLockedValue relevantMMTP mmtLovelace ownRemainingOrders
@@ -293,7 +351,36 @@ fixedSpreadVsMarketPriceStrategy
       logInfo providers $ unlines ("Orders being canceled:" : map (show . poiRef . coaPoi) cancelOrderActions)
       logInfo providers "----------------- FINISHED STRATEGY ---------------"
 
+      logDebug providers $ "Place Actions: " ++ show placeOrderActions
+      logDebug providers $ "Cancel Actions: " ++ show cancelOrderActions
+
+      logInfo providers $ unlines ("Orders being placed:" : map logPlaceAction placeOrderActions)
+      logInfo providers $ unlines ("Orders being canceled:" : map (show . poiRef . coaPoi) cancelOrderActions)
+      logInfo providers "----------------- FINISHED STRATEGY ---------------"
+
       return $ placeUserActions <> cancelUserActions
+     where
+      buildNewUserOrders
+        :: Spread
+        -> (MMToken, MMToken)
+        -> Price
+        -> Natural
+        -> Natural
+        -> Bool
+        -> [PlaceOrderAction]
+      buildNewUserOrders _delta@Spread {..} (ask, off) p tokenQ nOrders toInverse =
+        let p' = getPrice p
+            poi n =
+              let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 * buySideSpread else sellSideSpread)) * p'
+               in PlaceOrderAction
+                    { poaOfferedAsset = mmtAc off,
+                      poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,
+                      poaAskedAsset = mmtAc ask,
+                      poaPrice = rationalFromGHC $ if toInverse then denominator newMPrice % numerator newMPrice else newMPrice
+                    }
+         in if nOrders == 0 then [] else map poi [0 .. (nOrders - 1)] -- `nOrders` has type `Natural` thus subtracting from zero can give arithmetic exception.
+      getEquityFromOrder :: (MMTokenPair, PartialOrderInfo) -> Equity
+      getEquityFromOrder (_mmtp, poi) = getOrderOwnFunds poi & equityFromValue
      where
       buildNewUserOrders
         :: Rational
@@ -370,16 +457,16 @@ fixedSpreadVsMarketPriceStrategy
       prettyAc GYLovelace     = "lovelaces"
       prettyAc (GYToken _ tn) = "indivisible of " ++ show tn
 
-ordersToBeRemoved :: Price -> Rational -> [(MMTokenPair, PartialOrderInfo)] -> [(MMTokenPair, PartialOrderInfo)]
+ordersToBeRemoved :: Price -> Spread -> [(MMTokenPair, PartialOrderInfo)] -> [(MMTokenPair, PartialOrderInfo)]
 ordersToBeRemoved price cancelLimitSpread = filter (orderIsToBeRemoved price cancelLimitSpread)
 
-orderIsToBeRemoved :: Price -> Rational -> (MMTokenPair, PartialOrderInfo) -> Bool
-orderIsToBeRemoved mPrice cancelLimitSpread (mmtp, poi) =
+orderIsToBeRemoved :: Price -> Spread -> (MMTokenPair, PartialOrderInfo) -> Bool
+orderIsToBeRemoved mPrice _cancelLimitSpread@Spread {..} (mmtp, poi) =
   let marketPrice = getPrice mPrice
       oap = toOAPair mmtp
    in case mkOrderInfo oap poi of
-        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (cancelLimitSpread * marketPrice)
-        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (cancelLimitSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SBuyOrder, price} -> getPrice price < marketPrice - (buySideSpread * marketPrice)
+        SomeOrderInfo OrderInfo {orderType = SSellOrder, price} -> getPrice price > marketPrice + (sellSideSpread * marketPrice)
 
 flip4 :: (a -> b -> c -> d -> r) -> (b -> c -> d -> a -> r)
 flip4 f = \b c d a -> f a b c d

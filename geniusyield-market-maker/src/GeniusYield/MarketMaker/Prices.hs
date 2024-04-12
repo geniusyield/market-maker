@@ -25,6 +25,7 @@ import           Deriving.Aeson
 import           GeniusYield.GYConfig
 import           GeniusYield.Imports                       (Proxy)
 import           GeniusYield.MarketMaker.Orphans           ()
+import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (Connection)
 import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
@@ -364,27 +365,27 @@ type OBMarketInfo = M.Map MMTokenPair OBMarketTokenInfo
 
 mkOBMarketTokenInfo
   ∷ Price
-  → Rational
+  → Spread
   → Orders 'SellOrder
   → Orders 'BuyOrder
   → OBMarketTokenInfo
-mkOBMarketTokenInfo (Price marketPrice) spread sellOrders buyOrders =
+mkOBMarketTokenInfo (Price marketPrice) Spread {..} sellOrders buyOrders =
   OBMarketTokenInfo
     { mtSellVol = volumeMax sumVolSell,
       mtBuyVol = floor $ toRational (volumeMax sumVolBuy) * marketPrice
     }
  where
   sumVolSell ∷ Volume
-  sumVolSell = volumeLTPrice (Price (marketPrice + (marketPrice * spread))) sellOrders
+  sumVolSell = volumeLTPrice (Price (marketPrice + (marketPrice * sellSideSpread))) sellOrders
 
   sumVolBuy ∷ Volume
-  sumVolBuy = volumeGTPrice (Price (marketPrice - (marketPrice * spread))) buyOrders
+  sumVolBuy = volumeGTPrice (Price (marketPrice - (marketPrice * buySideSpread))) buyOrders
 
 getOrderBookPrices
   ∷ PricesProviders
   → [MMTokenPair]
   → Price
-  → Rational
+  → Spread
   → IO (OBMarketInfo, MultiAssetOrderBook)
 getOrderBookPrices PP {orderBookPP = (c, dex)} mmts price priceCheckSpread = do
   maOrderBook ← populateOrderBook c dex (dexPORefs dex) (map toOAPair mmts)

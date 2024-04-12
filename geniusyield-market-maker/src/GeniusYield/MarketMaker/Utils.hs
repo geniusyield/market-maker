@@ -30,6 +30,9 @@ import           Servant.API
 import           Servant.Client
 import           Unsafe.Coerce                    (unsafeCoerce)
 
+camelToSnake :: String -> String
+camelToSnake = camelTo2 '_'
+
 pkhUser :: User -> GYPaymentKeyHash
 pkhUser User {uSKey} = case getSecret uSKey of
   AGYPaymentSigningKey skey -> paymentKeyHash . paymentVerificationKey $ skey

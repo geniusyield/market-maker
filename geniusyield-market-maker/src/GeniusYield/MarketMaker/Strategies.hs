@@ -1,5 +1,6 @@
 module GeniusYield.MarketMaker.Strategies
   ( UserActions (..)
+  , UserActionsController (..)
   , uaFromOnlyPlaces
   , uaFromOnlyCancels
   , PlaceOrderAction (..)
@@ -220,6 +221,8 @@ fixedSpreadVsMarketPriceStrategy
     logInfo providers $ "Strategy configuration: " <> show  sc
 
     flip4 withPriceEstimate pp user mmToken $ \mp -> do
+      logInfo providers $ logMarketInfo mp
+      
       (bp, maob) <- getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold
 
       ownUtxos <- runGYTxQueryMonadNode nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
@@ -227,21 +230,6 @@ fixedSpreadVsMarketPriceStrategy
           allOwnOrders = M.foldr (++) [] ownOrdersPerUser
           equityInOrders = foldMap' getEquityFromOrder allOwnOrders
           equityInWallet = equityFromValue $ foldlUTxOs' (\acc utxo -> acc <> utxoValue utxo) mempty ownUtxos
-
-          ordersToCancel =
-            let mp' = getPrice mp
-                scCancelWindowRatio' = fromMaybe 0 scCancelWindowRatio
-                priceCrosses (toOAPair -> oap, poi) =
-                  case mkOrderInfo oap poi of
-                    SomeOrderInfo OrderInfo { orderType = SSellOrder, price } -> getPrice price * (1 - scCancelWindowRatio') <= mp'
-                    SomeOrderInfo OrderInfo { orderType = SBuyOrder, price } -> getPrice price * (1 + scCancelWindowRatio') >= mp'
-            in
-              nub $
-                   -- Cancel placed orders which are crossed by market price.
-                   filter priceCrosses allOwnOrders
-                <> -- And also cancel those which are "too away" from market price.
-                   ordersToBeRemoved mp cancelThreshold allOwnOrders
-          cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
 
           ordersToCancel =
             let mp' = getPrice mp
@@ -258,6 +246,9 @@ fixedSpreadVsMarketPriceStrategy
                    ordersToBeRemoved mp cancelThreshold allOwnOrders
           cancelOrderActions = map (CancelOrderAction . snd) ordersToCancel
 
+          relevantMMTP = mkMMTokenPair mmtLovelace mmToken
+          mtInfo = M.lookup relevantMMTP bp
+     
           ownRemainingOrders = allOwnOrders \\ ordersToCancel
           lockedLovelaces = getOrdersLockedValue relevantMMTP mmtLovelace ownRemainingOrders
           lockedTokens = getOrdersLockedValue relevantMMTP mmToken ownRemainingOrders
@@ -351,13 +342,6 @@ fixedSpreadVsMarketPriceStrategy
       logInfo providers $ unlines ("Orders being canceled:" : map (show . poiRef . coaPoi) cancelOrderActions)
       logInfo providers "----------------- FINISHED STRATEGY ---------------"
 
-      logDebug providers $ "Place Actions: " ++ show placeOrderActions
-      logDebug providers $ "Cancel Actions: " ++ show cancelOrderActions
-
-      logInfo providers $ unlines ("Orders being placed:" : map logPlaceAction placeOrderActions)
-      logInfo providers $ unlines ("Orders being canceled:" : map (show . poiRef . coaPoi) cancelOrderActions)
-      logInfo providers "----------------- FINISHED STRATEGY ---------------"
-
       return $ placeUserActions <> cancelUserActions
      where
       buildNewUserOrders
@@ -372,28 +356,6 @@ fixedSpreadVsMarketPriceStrategy
         let p' = getPrice p
             poi n =
               let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 * buySideSpread else sellSideSpread)) * p'
-               in PlaceOrderAction
-                    { poaOfferedAsset = mmtAc off,
-                      poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,
-                      poaAskedAsset = mmtAc ask,
-                      poaPrice = rationalFromGHC $ if toInverse then denominator newMPrice % numerator newMPrice else newMPrice
-                    }
-         in if nOrders == 0 then [] else map poi [0 .. (nOrders - 1)] -- `nOrders` has type `Natural` thus subtracting from zero can give arithmetic exception.
-      getEquityFromOrder :: (MMTokenPair, PartialOrderInfo) -> Equity
-      getEquityFromOrder (_mmtp, poi) = getOrderOwnFunds poi & equityFromValue
-     where
-      buildNewUserOrders
-        :: Rational
-        -> (MMToken, MMToken)
-        -> Price
-        -> Natural
-        -> Natural
-        -> Bool
-        -> [PlaceOrderAction]
-      buildNewUserOrders delta' (ask, off) p tokenQ nOrders toInverse =
-        let p' = getPrice p
-            poi n =
-              let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 else 1) * delta') * p'
                in PlaceOrderAction
                     { poaOfferedAsset = mmtAc off,
                       poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,

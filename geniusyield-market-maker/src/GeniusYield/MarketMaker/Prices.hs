@@ -73,6 +73,10 @@ data PriceConfigV1 = PriceConfigV1
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV1
 
+-- | Needed to parse deprecated 'PriceConfigV1'
+defaultMaestroFailDelay ∷ Int
+defaultMaestroFailDelay = 100  -- TODO: what is a reasonable value to put here?
+
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     ∷ !PriceCommonCfg,
     pcPricesProviderCfgs ∷ !(NE.NonEmpty PricesProviderCfg)
@@ -170,12 +174,12 @@ buildPP c dex pc =
           mcPairOverride = pcOverride
       return PPA
         { ppaCommonCfg = PriceCommonCfg
-          { pccCommonResolution   = CRes5m  -- unused
-          , pccNetworkId          = pccNetworkId
-          , pccPriceDiffThreshold1 = 1      -- unused
-          , pccPriceDiffThreshold2 = 1      -- unused
-          , pccPriceDiffDelay1     = 0      -- unused
-          , pccPriceDiffDelay2     = 0      -- unused
+          { pccCommonResolution    = CRes5m  -- placeholder, unused
+          , pccNetworkId           = pccNetworkId
+          , pccPriceDiffThreshold1 = 1
+          , pccPriceDiffThreshold2 = 1
+          , pccPriceDiffDelay1     = 0      -- placeholder, unused
+          , pccPriceDiffDelay2     = defaultMaestroFailDelay
           }
 
         , ppaPricesCluster = NE.fromList [

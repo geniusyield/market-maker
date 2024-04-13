@@ -85,12 +85,13 @@ data PriceConfigV2 = PriceConfigV2
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
 
 data PriceCommonCfg = PriceCommonCfg
-  { pccCommonResolution    ∷ !CommonResolution,
-    pccNetworkId           ∷ !GYNetworkId,
-    pccPriceDiffThreshold1 ∷ !Double,  -- ^ Triggers "mildly spooked"
-    pccPriceDiffThreshold2 ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 > Threshold1
-    pccPriceDiffDelay1     ∷ !Int,
-    pccPriceDiffDelay2     ∷ !Int
+  { pccCommonResolution       ∷ !CommonResolution,
+    pccNetworkId              ∷ !GYNetworkId,
+    pccPricesProvidersWeights ∷ ![Rational],  -- ^ Corresponding to each @PricesProviderCfg@
+    pccPriceDiffThreshold1    ∷ !Double,  -- ^ Triggers "mildly spooked"
+    pccPriceDiffThreshold2    ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 > Threshold1
+    pccPriceDiffDelay1        ∷ !Int,
+    pccPriceDiffDelay2        ∷ !Int
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
@@ -116,7 +117,7 @@ instance FromJSON PriceConfig where
 
 
 -------------------------------------------------------------------------------
--- Price "estimate" from providers
+-- Build Prices Providers, Quotas and Weights
 -------------------------------------------------------------------------------
 
 data MMToken = MMToken
@@ -147,7 +148,7 @@ data MaestroPairOverride = MaestroPairOverride
 
 data PricesProvidersAggregator = PPA
   { ppaCommonCfg     ∷ !PriceCommonCfg,
-    ppaPricesCluster ∷ !(NE.NonEmpty PricesProviderCfg)
+    ppaPricesCluster ∷ ![PricesProviderCfg]
   }
 
 data PricesProviders = PP
@@ -174,26 +175,26 @@ buildPP c dex pc =
           mcPairOverride = pcOverride
       return PPA
         { ppaCommonCfg = PriceCommonCfg
-          { pccCommonResolution    = CRes5m  -- placeholder, unused
-          , pccNetworkId           = pccNetworkId
-          , pccPriceDiffThreshold1 = 1
-          , pccPriceDiffThreshold2 = 1
-          , pccPriceDiffDelay1     = 0      -- placeholder, unused
-          , pccPriceDiffDelay2     = defaultMaestroFailDelay
+          { pccCommonResolution       = CRes5m  -- placeholder, unused
+          , pccNetworkId              = pccNetworkId
+          , pccPricesProvidersWeights = [1]
+          , pccPriceDiffThreshold1    = 1
+          , pccPriceDiffThreshold2    = 1
+          , pccPriceDiffDelay1        = 0       -- placeholder, unused
+          , pccPriceDiffDelay2        = defaultMaestroFailDelay
           }
 
-        , ppaPricesCluster = NE.fromList [
-            MaestroConfig
-              { mcApiKey = mcApiKey
-              , mcResolutionOverride = Just pcResolution
-              , mcDex = mcDex
-              , mcPairOverride = mcPairOverride
-              } ]
+        , ppaPricesCluster = [ MaestroConfig
+            { mcApiKey = mcApiKey
+            , mcResolutionOverride = Just pcResolution
+            , mcDex = mcDex
+            , mcPairOverride = mcPairOverride
+            } ]
         }
 
     PCVersion2 (PriceConfigV2 {..}) → pure PPA
       { ppaCommonCfg     = pcPriceCommonCfg,
-        ppaPricesCluster = pcPricesProviderCfgs
+        ppaPricesCluster = NE.toList pcPricesProviderCfgs
       }
   
 data SourceError = SourceUnavailable
@@ -291,11 +292,31 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
   _         → throwIO $ userError "Price unavailable."
 
 buildGetQuotas ∷ PricesProviders → [GetQuota]
-buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> NE.toList ppaPricesCluster
+buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> ppaPricesCluster
+
+buildWeights ∷ PricesProviders → [Rational]
+buildWeights PP {pricesAggregatorPP = PPA {..}} =
+  let numProviders = length ppaPricesCluster
+      givenWeights = pccPricesProvidersWeights ppaCommonCfg
+
+  in  adjustList givenWeights numProviders (mean givenWeights)
+
+  where
+    adjustList ∷ Num a => [a] → Int → a  → [a]
+    adjustList xs n y
+      | length xs < n = xs ++ replicate (n - length xs) y
+      | otherwise     = take n xs
+
+
+-------------------------------------------------------------------------------
+-- Price "estimate" from providers
+-------------------------------------------------------------------------------
 
 priceEstimate ∷ PricesProviders → MMTokenPair → IO (Either PriceError Price)
 priceEstimate pp mmtp = do
   let pproviders = buildGetQuotas pp
+      weights    = buildWeights pp
+
   eps ← mapM (\prov → getQuota prov mmtp) pproviders
 
   let hasSourceFailed = not . null $ [ s | s@SourceUnavailable ← lefts eps ]
@@ -303,7 +324,7 @@ priceEstimate pp mmtp = do
   case rights eps of
     [] → return $ Left PriceUnavailable
     ps → do
-      let p    = Price . mean $ getPrice <$> ps
+      let p    = Price . weightedMean weights $ getPrice <$> ps
           rsd  = relStdDev $ fromRational . getPrice <$> ps
           cCfg = ppaCommonCfg . pricesAggregatorPP $ pp
           ths1 = pccPriceDiffThreshold1 cCfg

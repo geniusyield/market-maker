@@ -161,13 +161,22 @@ priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUn
 
 
 -------------------------------------------------------------------------------
--- Relative Standard Deviation
+-- Mean, Weighted Mean, and Relative Standard Deviation
 -------------------------------------------------------------------------------
 
 mean :: Fractional a => [a] -> a
 mean []     = error "mean of empty sample is undefined"
 mean sample = let n = fromIntegral . length $ sample
               in  sum sample / n
+
+weightedMean :: Fractional a => [a] -> [a] -> a
+weightedMean [] _           = error "list of weights can not be empty"
+weightedMean weights sample =
+  let weights' = normalize $ take (length sample) weights
+  in  sum $ zipWith (*) weights' sample
+  where
+    normalize xs = let total = sum xs
+                   in  map (\x -> x / total) xs
 
 relStdDev :: [Double] -> Double
 relStdDev sample = case sample of

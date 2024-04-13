@@ -173,7 +173,7 @@ relStdDev :: [Double] -> Double
 relStdDev sample = case sample of
   []       -> error "std dev of empty sample is undefined"
   [_]      -> 0
-  [x1, x2] -> sqrt 2 * abs (x1 - x2) / (x1 + x2)
+  [x1, x2] -> abs (x1 - x2) / (x1 + x2)
   xs       -> relStdDev' xs
 
 relStdDev' :: [Double] -> Double

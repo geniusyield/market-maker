@@ -23,7 +23,7 @@ import           Data.Ratio                                ((%))
 import           Data.Text                                 (Text, pack)
 import           Deriving.Aeson
 import           GeniusYield.GYConfig
-import           GeniusYield.Imports                       (Proxy)
+import           GeniusYield.Imports                       (Proxy, when)
 import           GeniusYield.MarketMaker.Orphans           ()
 import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.Utils
@@ -89,7 +89,7 @@ data PriceCommonCfg = PriceCommonCfg
     pccNetworkId              ∷ !GYNetworkId,
     pccPricesProvidersWeights ∷ ![Rational],  -- ^ Corresponding to each @PricesProviderCfg@
     pccPriceDiffThreshold1    ∷ !Double,  -- ^ Triggers "mildly spooked"
-    pccPriceDiffThreshold2    ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 > Threshold1
+    pccPriceDiffThreshold2    ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 >= Threshold1
     pccPriceDiffDelay1        ∷ !Int,
     pccPriceDiffDelay2        ∷ !Int
   }
@@ -192,10 +192,21 @@ buildPP c dex pc =
             } ]
         }
 
-    PCVersion2 (PriceConfigV2 {..}) → pure PPA
-      { ppaCommonCfg     = pcPriceCommonCfg,
-        ppaPricesCluster = NE.toList pcPricesProviderCfgs
-      }
+    PCVersion2 (PriceConfigV2 {..}) → do
+      let ppaCommonCfg     = pcPriceCommonCfg
+          thresHold1       = pccPriceDiffThreshold1 ppaCommonCfg
+          thresHold2       = pccPriceDiffThreshold1 ppaCommonCfg
+          ppaPricesCluster = NE.toList pcPricesProviderCfgs
+
+      when (length (pccPricesProvidersWeights ppaCommonCfg) /= length ppaPricesCluster) $
+        throwIO $ userError "Expected 'pccPricesProvidersWeights' to be of same length as 'pcPricesProviderCfgs'."
+      when (thresHold2 < thresHold1) $
+        throwIO $ userError "Expected 'pccPriceDiffThreshold2 >= pccPriceDiffThreshold1'."
+
+      return PPA
+        { ppaCommonCfg     = ppaCommonCfg,
+          ppaPricesCluster = ppaPricesCluster
+        }
   
 data SourceError = SourceUnavailable
   deriving stock Show
@@ -295,17 +306,7 @@ buildGetQuotas ∷ PricesProviders → [GetQuota]
 buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> ppaPricesCluster
 
 buildWeights ∷ PricesProviders → [Rational]
-buildWeights PP {pricesAggregatorPP = PPA {..}} =
-  let numProviders = length ppaPricesCluster
-      givenWeights = pccPricesProvidersWeights ppaCommonCfg
-
-  in  adjustList givenWeights numProviders (mean givenWeights)
-
-  where
-    adjustList ∷ Num a => [a] → Int → a  → [a]
-    adjustList xs n y
-      | length xs < n = xs ++ replicate (n - length xs) y
-      | otherwise     = take n xs
+buildWeights PP {pricesAggregatorPP = PPA {..}} = pccPricesProvidersWeights ppaCommonCfg
 
 
 -------------------------------------------------------------------------------

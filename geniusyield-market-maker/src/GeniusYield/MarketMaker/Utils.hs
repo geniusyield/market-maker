@@ -170,13 +170,10 @@ mean sample = let n = fromIntegral . length $ sample
               in  sum sample / n
 
 weightedMean :: Fractional a => [a] -> [a] -> a
-weightedMean [] _           = error "list of weights can not be empty"
-weightedMean weights sample =
-  let weights' = normalize $ take (length sample) weights
-  in  sum $ zipWith (*) weights' sample
-  where
-    normalize xs = let total = sum xs
-                   in  map (\x -> x / total) xs
+weightedMean weights sample
+  | null sample                     = error "weighted mean of empty sample is undefined"
+  | length weights /= length sample = error "expected 'weights' and 'sample' of same length"
+  | otherwise                       = (sum $ zipWith (*) weights sample) / sum weights
 
 relStdDev :: [Double] -> Double
 relStdDev sample = case sample of

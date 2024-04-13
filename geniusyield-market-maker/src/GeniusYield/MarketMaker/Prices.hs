@@ -83,8 +83,8 @@ data PriceConfigV2 = PriceConfigV2
 data PriceCommonCfg = PriceCommonCfg
   { pccCommonResolution    ∷ !CommonResolution,
     pccNetworkId           ∷ !GYNetworkId,
-    pccPriceDiffThreshold1 ∷ !Double,
-    pccPriceDiffThreshold2 ∷ !Double,
+    pccPriceDiffThreshold1 ∷ !Double,  -- ^ Triggers "mildly spooked"
+    pccPriceDiffThreshold2 ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 > Threshold1
     pccPriceDiffDelay1     ∷ !Int,
     pccPriceDiffDelay2     ∷ !Int
   }
@@ -195,7 +195,7 @@ buildPP c dex pc =
 data SourceError = SourceUnavailable
   deriving stock Show
 
-data PriceError = PriceMismatch1 | PriceMismatch2 | PriceSourceFail Price
+data PriceError = PriceMismatch1 | PriceMismatch2 | PriceUnavailable | PriceSourceFail Price
   deriving stock Show
 
 newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceError Price) }
@@ -297,16 +297,21 @@ priceEstimate pp mmtp = do
   let hasSourceFailed = not . null $ [ s | s@SourceUnavailable ← lefts eps ]
   
   case rights eps of
-    []   → throwIO $ userError "Price not available from any provider."
+    [] → return $ Left PriceUnavailable
     ps → do
-      let p   = Price . mean $ getPrice <$> ps
-          rsd = relStdDev $ fromRational . getPrice <$> ps
-          ths = pccPriceDiffThreshold1 . ppaCommonCfg . pricesAggregatorPP $ pp
-      if rsd > ths
-        then return . Left  $ PriceMismatch1
-        else if hasSourceFailed
-               then return (Left $ PriceSourceFail p)
-               else return . Right $ p
+      let p    = Price . mean $ getPrice <$> ps
+          rsd  = relStdDev $ fromRational . getPrice <$> ps
+          cCfg = ppaCommonCfg . pricesAggregatorPP $ pp
+          ths1 = pccPriceDiffThreshold1 cCfg
+          ths2 = pccPriceDiffThreshold2 cCfg
+
+          priceAnalyzed
+            | rsd > ths2      = Left PriceMismatch2
+            | rsd > ths1      = Left PriceMismatch1
+            | hasSourceFailed = Left $ PriceSourceFail p
+            | otherwise       = Right p
+
+      return priceAnalyzed
 
 
 -------------------------------------------------------------------------------

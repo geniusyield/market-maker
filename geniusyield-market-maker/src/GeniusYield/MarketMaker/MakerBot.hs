@@ -132,22 +132,22 @@ executeStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provide
     (newActions, controller) ← runStrategy pp mbUser mbToken
 
     case controller of
-      UACNormal   → do
+      UACNormal     → do
         buildAndSubmitActions mbUser providers netId newActions di
         
         gyLogInfo providers logNS "---------- Done for the block! -----------"
         threadDelay mbDelay
 
-      UACSpooked1 → do
+      UACSpooked1   → do
         cancelAllOrders mb netId providers di
 
         gyLogInfo providers logNS "Closed all orders due to price mismatch among Prices Providers"
         threadDelay priceMismatchDelay1
       
-      UACSpooked2 → do
+      UACSpooked2 e → do
         cancelAllOrders mb netId providers di
         
-        gyLogWarning providers logNS "Closed all orders due to outrageous price mismatch among Prices Providers"
+        gyLogWarning providers logNS $ "Closed all orders due to: " ++ e
         threadDelay priceMismatchDelay2
         
         

@@ -77,7 +77,7 @@ instance Monoid UserActions where
         uaCancels = []
       }
 
-data UserActionsController = UACNormal | UACSpooked1 | UACSpooked2
+data UserActionsController = UACNormal | UACSpooked1 | UACSpooked2 String
 
 uaFromOnlyPlaces :: [PlaceOrderAction]-> UserActions
 uaFromOnlyPlaces poas = mempty {uaPlaces = poas}
@@ -200,7 +200,8 @@ withPriceEstimate k pp _ mmt = do
       actions <- k p
       return (actions, UACNormal)
     Left PriceMismatch1      -> return (mempty, UACSpooked1)
-    Left PriceMismatch2      -> return (mempty, UACSpooked2)
+    Left PriceMismatch2      -> return (mempty, UACSpooked2 "outrageous price mismatch among Prices Providers")
+    Left PriceUnavailable    -> return (mempty, UACSpooked2 "all Prices Providers unavailable")
     Right p                  -> k p >>= \actions -> pure (actions, UACNormal)
  where
   logWarn :: GYProviders -> String -> IO ()

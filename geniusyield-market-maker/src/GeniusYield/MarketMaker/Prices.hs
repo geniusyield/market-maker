@@ -19,9 +19,9 @@ import qualified Data.Map.Strict                           as M
 import           Data.Maybe                                (fromJust)
 import           Data.Text                                 (Text, pack)
 import           Deriving.Aeson
+import           GeniusYield.Api.Dex.Constants             (DEXInfo (..))
 import           GeniusYield.GYConfig
 import           GeniusYield.Imports                       (Proxy)
-import           GeniusYield.MarketMaker.Orphans           ()
 import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (Connection)
@@ -250,7 +250,7 @@ getMaestroPrice PP {maestroPP = MaestroPP {..}} mmtp = do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) (Just Descending)
+  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex mppEnv mppDex pair (Just mppResolution) Nothing Nothing Nothing (Just Descending)
 
   let info = head ohlInfo
       curPrecision :: Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp

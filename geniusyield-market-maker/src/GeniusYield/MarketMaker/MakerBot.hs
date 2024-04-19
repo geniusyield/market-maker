@@ -47,7 +47,7 @@ cancelAllOrders MakerBot {mbUser} netId providers di = do
           exitSuccess
         let (batch, rest) = splitAt 6 partialOrderInfos
             userAddr = addrUser netId mbUser
-        txBody <-
+        txBody ← 
           runGYTxMonadNode netId providers [userAddr] userAddr (uColl mbUser)
             $ runReaderT (cancelMultiplePartialOrders (dexPORefs di) batch) di
         let signedTx =
@@ -75,7 +75,7 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
 
   forM_ placeActions $ \pa@PlaceOrderAction {..} → do
     logInfo $ "Building for place action: " <> show pa
-    txBody <-
+    txBody ← 
       runGYTxMonadNode netId providers [userAddr] userAddr uColl
         $ flip runReaderT di
         $ placePartialOrder

@@ -1,0 +1,103 @@
+# Sample bot configuration for Pre-production testnet.
+# Please see README file in project's root for thorough explanation of below fields.
+
+# Wallet configuration.
+mbc_user:
+  # Load the wallet from mnemonic seed phrase.
+  ur_mnemonic:
+    mnemonic:
+      - word1
+      - word2
+      - ...
+      - word24
+    # Account index.
+    acc_ix: 0
+    # Payment address index.
+    addr_ix: 0
+  # Reserved collateral UTxO.
+  ur_coll: tx-id#tx-ix
+  # Stake credential to generate for bot's address and to place orders at a mangled address.
+  ur_stake_address: bech32-encoded-stake-address
+# Delay in microseconds after which strategy is reran, below example value means 2 minutes (120 seconds).
+mbc_delay: 120000000
+# Price provider configuration.
+mbc_price_config:
+  # Configuration parameters independent of prices providers.
+  pc_price_common_cfg:
+    # Common resolution parameter for API call, for both prices providers. Available choices: CRes5m, CRes15m, CRes30m, CRes1h, CRes4h, CRes1d, CRes1w, CRes1mo.
+    pcc_common_resolution: CRes15m  # example: 15 minutes
+    pcc_network_id:  mainnet
+    # Relative weights in the computation of average price.
+    pcc_prices_providers_weights:
+      - 1  # weight of first prices provider (integer)
+      - 1  # weight of second prices provider (integer)
+    # Difference threshold triggering automatic cancelation of open orders, without warning.
+    pcc_price_diff_threshold1: 0.3
+    # Difference threshold triggering automatic cancelation of open orders, sending a warning.  Should not be smaller than Threshold1.
+    pcc_price_diff_threshold2: 0.6
+    # Delay after closing all orders if Threshold1 is triggered.
+    pcc_price_diff_delay1:  60000000  # one minute (in microseconds)
+    # Delay after closing all orders if Threshold2 is triggered.
+    pcc_price_diff_delay2:  120000000  # two minutes
+  # Configuration parameters for each prices provider
+  pc_prices_provider_cfgs:
+    - tag: MaestroConfig
+      # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
+      mc_api_key: <<MAESTRO_TOKEN>>
+      mc_dex: minswap
+      # Alternative pair (for testing only).
+      mc_pair_override:
+        mpo_pair: "ADA-GENS"
+        mpo_commodity_is_first: false
+      mc_offset_file_path: "./offset_price.txt"       # TESTING
+      mc_available_path: "./maestro_available.txt"    # TESTING
+    - tag: TaptoolsConfig
+      # Taptools API key.
+      ttc_api_key: <<TAPTOOLS_TOKEN>>
+      ttc_pair_override:
+        # Alternative asset (policyID + tokenName) to query for prices.  For testing only.
+        ttpo_asset: dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb0014df1047454e53  # example: GENS
+        ttpo_precision: 6
+        ttpo_commodity_is_first: false
+      ttc_available_path: "./taptools_available.txt"  # TESTING
+      # mc_offset_file_path: "./offset_price.txt"
+# Please see description following this sample for details regarding `mbc_strategy_config` field.
+mbc_strategy_config:
+  sc_spread:
+    # Can simple write
+    # numerator: 1
+    # denominator: 100
+    # To specify same spread for both sell and buy side. Or can individually specify for each like done below.
+    sell_side_spread:
+      numerator: 1
+      denominator: 100
+    buy_side_spread:
+      numerator: 2
+      denominator: 100
+  sc_token_volume:
+    tv_sell_min_vol: 1000000000
+    tv_buy_min_vol: 2000000000
+    tv_sell_budget: 3500000000
+    tv_buy_budget: 6600000000
+    tv_sell_vol_threshold: 10000000000
+    tv_buy_vol_threshold: 20000000000
+  sc_price_check_product: 9
+  sc_cancel_threshold_product: 4
+  sc_preemptive_cancel_spread_ratio:
+    numerator: 1
+    denominator: 10
+# Token details.
+mbc_token:
+  # Asset class represented as concatenation of currency symbol and asset name with dot separator.
+  # Below sample is of `tGENS` test token.
+  ac: c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53
+  # Registered decimal places for the token. As an examples, for `ADA` it is 6 and for `SNEK` it is 0.
+  precision: 6
+# Boiler plate for Pre-production testnet.
+mbc_fp_nft_policy: compiled-scripts/minting-policy
+mbc_fp_order_validator: compiled-scripts/partial-order
+mbc_po_config_addr: addr_test1wrgvy8fermjrruaf7fnndtmpuw4xx4cnvfqjp5zqu8kscfcvh32qk
+mbc_po_refs:
+  por_ref_nft: fae686ea8f21d567841d703dea4d4221c2af071a6f2b433ff07c0af2.8309f9861928a55d37e84f6594b878941edce5e351f7904c2c63b559bde45c5c
+  por_val_ref: be6f8dc16d4e8d5aad566ff6b5ffefdda574817a60d503e2a0ea95f773175050#2
+  por_mint_ref: be6f8dc16d4e8d5aad566ff6b5ffefdda574817a60d503e2a0ea95f773175050#1

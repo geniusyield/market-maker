@@ -151,7 +151,7 @@ data MaestroPairOverride = MaestroPairOverride
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
 data TaptoolsPairOverride = TaptoolsPairOverride
-  { ttpoPolicyID         ∷ !String,
+  { ttpoAsset            ∷ !String,
     ttpoPrecision        ∷ !Natural,
     ttpoCommodityIsFirst ∷ !Bool
   }
@@ -306,7 +306,7 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
     if not taptoolsAvailable then return $ Left SourceUnavailable else do
       (commodity ∷ Either (String, Natural) MMToken, commodityIsFirst ∷ Bool) ← 
         case ttcPairOverride of
-          Just ttpo                             → pure (Left (ttpoPolicyID ttpo, ttpoPrecision $ ttpo), ttpoCommodityIsFirst ttpo)
+          Just ttpo                             → pure (Left (ttpoAsset ttpo, ttpoPrecision $ ttpo), ttpoCommodityIsFirst ttpo)
           Nothing
             | mmtpCurrency mmtp  == mmtLovelace → pure (Right $ mmtpCommodity mmtp, False)
             | mmtpCommodity mmtp == mmtLovelace → pure (Right $ mmtpCurrency mmtp, True)

@@ -169,11 +169,12 @@ mean []     = error "mean of empty sample is undefined"
 mean sample = let n = fromIntegral . length $ sample
               in  sum sample / n
 
-weightedMean :: Fractional a => [a] -> [a] -> a
-weightedMean weights sample
-  | null sample                     = error "weighted mean of empty sample is undefined"
-  | length weights /= length sample = error "expected 'weights' and 'sample' of same length"
-  | otherwise                       = (sum $ zipWith (*) weights sample) / sum weights
+weightedMean :: Fractional a => [(a,a)] -> a
+weightedMean []  = error "weighted mean of empty sample is undefined"
+weightedMean wps = numerator / denominator
+  where
+    numerator   = sum $ map (\(x, y) -> x * y) wps
+    denominator = sum $ map fst wps
 
 relStdDev :: [Double] -> Double
 relStdDev sample = case sample of

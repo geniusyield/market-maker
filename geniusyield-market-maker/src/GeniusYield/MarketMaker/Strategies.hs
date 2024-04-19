@@ -195,14 +195,14 @@ withPriceEstimate k pp _ mmt = do
 
   pe <- priceEstimate pp mmTokenPair
   case pe of
-    Left (PriceSourceFail p) -> do
+    PriceSourceFail p -> do
       logWarn providers $ "One prices provider failed"  -- TODO: give details of failing provider
       actions <- k p
       return (actions, UACNormal)
-    Left PriceMismatch1      -> return (mempty, UACSpooked1)
-    Left PriceMismatch2      -> return (mempty, UACSpooked2 "outrageous price mismatch among Prices Providers")
-    Left PriceUnavailable    -> return (mempty, UACSpooked2 "all Prices Providers unavailable")
-    Right p                  -> k p >>= \actions -> pure (actions, UACNormal)
+    PriceMismatch1    -> return (mempty, UACSpooked1)
+    PriceMismatch2    -> return (mempty, UACSpooked2 "outrageous price mismatch among Prices Providers")
+    PriceUnavailable  -> return (mempty, UACSpooked2 "all Prices Providers unavailable")
+    PriceAverage p    -> k p >>= \actions -> pure (actions, UACNormal)
  where
   logWarn :: GYProviders -> String -> IO ()
   logWarn providers = gyLogWarning providers logNS

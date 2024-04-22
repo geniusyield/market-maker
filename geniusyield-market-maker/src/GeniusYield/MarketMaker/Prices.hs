@@ -6,7 +6,7 @@ import           Control.Applicative                       ((<|>))
 import           Control.Arrow                             (Arrow (first),
                                                             (&&&))
 import           Control.Exception                         (Exception, throwIO,
-                                                            try, catch, IOException, displayException, evaluate)
+                                                            try, catch, IOException, evaluate)
 import           Control.Monad                             ((<=<))
 import           Data.Aeson                                (parseJSON)
 import           Data.ByteString.Char8                     (unpack)
@@ -254,7 +254,7 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
 
   offset ← case mcOffsetFilePath of  -- TESTING
     Nothing   → pure 0
-    Just path → readOffset path `catch` handleReadError
+    Just path → readOffset path `catch` handleOffsetReadError
 
   let info = head ohlInfo
       curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
@@ -270,7 +270,7 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
 
   maestroAvailable ← case mcAvailablePath of  -- TESTING
     Nothing   → pure True
-    Just path → readBool path `catch` handleReadError
+    Just path → readBool path `catch` handleBoolReadError
 
   if maestroAvailable
     then return . Right $ Price (toRational adjustedPrice)
@@ -333,7 +333,7 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
 
             taptoolsAvailable ← case ttcAvailablePath of  -- TESTING
               Nothing   → pure True
-              Just path → readBool path `catch` handleReadError
+              Just path → readBool path `catch` handleBoolReadError
 
             if taptoolsAvailable
               then return . Right . Price . toRational $ adjustedPrice
@@ -505,24 +505,23 @@ readOffset filePath = withFile filePath ReadMode $ \handle → do
   contents ← hGetContents handle
   -- Forces actual read
   _ ← evaluate (length contents)
-  putStrLn "Testing 'offset' flag:"
-  putStrLn contents
   let parsed = reads contents ∷ [(Double, String)]
   case parsed of
       [(num, _)] → return num
-      _          → error "could not read number of type 'Double'"
+      _          → return 0
+
+handleOffsetReadError ∷ IOException → IO Double
+handleOffsetReadError _ = return 0
 
 readBool ∷ FilePath → IO Bool
 readBool filePath = withFile filePath ReadMode $ \handle → do
   contents ← hGetContents handle
   -- Forces actual read
   _ ← evaluate (length contents)
-  putStrLn "Testing 'bool' flag:"
-  putStrLn contents
   let parsed = reads contents ∷ [(Bool, String)]
   case parsed of
     [(bool, _)] → return bool
-    _           → error "could not read boolean"
+    _           → return True
 
-handleReadError ∷ forall a. IOException → IO a
-handleReadError e = error $ displayException e
+handleBoolReadError ∷ IOException → IO Bool
+handleBoolReadError _ = return True

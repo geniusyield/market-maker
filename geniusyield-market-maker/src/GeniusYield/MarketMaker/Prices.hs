@@ -300,12 +300,14 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
     
 buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → case pccNetworkId of
   GYMainnet → do
-    (commodity ∷ Either (String, Natural) MMToken) ← 
+    commodity ∷ MMToken <-
       case ttcPairOverride of
-        Just ttpo                             → pure $ Left (ttpoAsset ttpo, ttpoPrecision ttpo)
+        Just ttpo                             → case taptoolsParseAsset . ttpoAsset $ ttpo of
+          Nothing      → throwIO $ userError "Could not parse 'ttpo_asset' (in 'ttc_pair_override')."
+          Just gyAsset → pure MMToken {mmtAc = gyAsset, mmtPrecision = ttpoPrecision ttpo}
         Nothing
-          | mmtpCurrency mmtp  == mmtLovelace → pure . Right . mmtpCommodity $ mmtp
-          | mmtpCommodity mmtp == mmtLovelace → pure . Right . mmtpCurrency $ mmtp
+          | mmtpCurrency mmtp  == mmtLovelace → pure . mmtpCommodity $ mmtp
+          | mmtpCommodity mmtp == mmtLovelace → pure . mmtpCurrency $ mmtp
           | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
 
     manager' ← taptoolsManager ttcApiKey
@@ -315,12 +317,14 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
     let interval = show res
 
     case commodity of
-      Right MMToken { mmtAc = GYLovelace } → return . Right $ Price (1 % 1)
-      _                                    → do
-        let (unit, precision) = case commodity of
-              Left (s, n)                                 → (s, n)
-              Right MMToken { mmtAc = GYToken cs tn, .. } → (show cs ++ show tn, fromIntegral mmtPrecision)
+      MMToken { mmtAc = GYLovelace }                              → do
+        return . Right $ Price (1 % 1)
 
+      MMToken { mmtAc = GYToken cs tn, mmtPrecision = precision } → do
+        let cs'       = withoutQuotes . show $ cs
+            tn'       = withoutQuotes . show . tokenNameToHex $ tn
+            unit      = cs' ++ tn'
+        
         ohlcvInfo ← priceFromTaptools (Just unit) (Just interval) (Just 1) env
 
         case ohlcvInfo of
@@ -338,6 +342,11 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
             if taptoolsAvailable
               then return . Right . Price . toRational $ adjustedPrice
               else return $ Left SourceUnavailable
+      where
+        withoutQuotes ∷ String → String
+        withoutQuotes s = case s of
+          ('"':xs) | not (null xs) && last xs == '"' → init xs
+          _                                          → s
 
   _         → throwIO $ userError "Price unavailable."
 
@@ -503,8 +512,7 @@ handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 readOffset ∷ FilePath → IO Double
 readOffset filePath = withFile filePath ReadMode $ \handle → do
   contents ← hGetContents handle
-  -- Forces actual read
-  _ ← evaluate (length contents)
+  _ ← evaluate (length contents)  -- Forces actual read
   let parsed = reads contents ∷ [(Double, String)]
   case parsed of
       [(num, _)] → return num
@@ -516,8 +524,7 @@ handleOffsetReadError _ = return 0
 readBool ∷ FilePath → IO Bool
 readBool filePath = withFile filePath ReadMode $ \handle → do
   contents ← hGetContents handle
-  -- Forces actual read
-  _ ← evaluate (length contents)
+  _ ← evaluate (length contents)  -- Forces actual read
   let parsed = reads contents ∷ [(Bool, String)]
   case parsed of
     [(bool, _)] → return bool

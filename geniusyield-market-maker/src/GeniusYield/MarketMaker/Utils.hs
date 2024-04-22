@@ -2,6 +2,8 @@ module GeniusYield.MarketMaker.Utils where
 
 import qualified Cardano.Api                      as Api
 import           Data.Aeson
+import qualified Data.ByteString.Lazy             as BL
+import           Data.ByteString.Char8            (pack)
 import qualified Data.Map                         as Map
 import           Data.Maybe                       (fromJust)
 import           Data.Proxy
@@ -158,6 +160,12 @@ taptoolsBaseUrl = BaseUrl Http "openapi.taptools.io" 80 "api/v1"
 
 priceFromTaptools :: Maybe TtUnit -> Maybe TtInterval -> Maybe Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
 priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUnit mbInterval mbNumIntervals)
+
+-- | Get @GYAssetClass@ from string 'policyid.tokenname' in Hex format.
+taptoolsParseAsset :: String -> Maybe GYAssetClass
+taptoolsParseAsset s = let s' = "\"" ++ s ++ "\""
+                           bs = BL.fromStrict . pack $ s'
+                       in  Data.Aeson.decode @GYAssetClass bs
 
 
 -------------------------------------------------------------------------------

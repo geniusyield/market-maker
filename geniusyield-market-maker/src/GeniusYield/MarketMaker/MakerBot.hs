@@ -12,7 +12,7 @@ import           GeniusYield.Api.Dex.PartialOrder   (PartialOrderInfo (poiOwnerK
                                                      cancelMultiplePartialOrders,
                                                      partialOrders,
                                                      placePartialOrder)
-import           GeniusYield.Imports                (printf, (&))  -- TODO: add 'fromMaybe'?
+import           GeniusYield.Imports                (printf, (&))
 import           GeniusYield.MarketMaker.Constants  (awaitTxParams, logNS)
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
@@ -35,8 +35,8 @@ data MakerBot = MakerBot
   }
 
 data MBFret = MBReady | MBSpooked1
-                        { mbsRelax1  ∷ !Int
-                        , mbsWorse1  ∷ !Int
+                        { mbsRelax1 ∷ !Int
+                        , mbsWorse1 ∷ !Int
                         }
                       | MBSpooked2
                         { mbsRelax2 ∷ !Int }

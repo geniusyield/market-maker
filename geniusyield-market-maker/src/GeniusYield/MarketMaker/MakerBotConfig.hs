@@ -55,16 +55,16 @@ instance FromEnv MakerBotConfig where
     forceFromJson ∷ FromJSON a ⇒ String → a
     forceFromJson = either error id . eitherDecodeStrict . fromString
 
-eitherDecodeFileStrictJsonOrYaml :: FromJSON a => FilePath -> IO (Either String a)
+eitherDecodeFileStrictJsonOrYaml ∷ FromJSON a => FilePath → IO (Either String a)
 eitherDecodeFileStrictJsonOrYaml fp =
   case takeExtension fp of
-    ".json" -> eitherDecodeFileStrict fp
-    ".yaml" -> first show <$> Yaml.decodeFileEither fp
-    _       -> throwIO $ userError "Only .json or .yaml extensions are supported for configuration."
+    ".json" → eitherDecodeFileStrict fp
+    ".yaml" → first show <$> Yaml.decodeFileEither fp
+    _       → throwIO $ userError "Only .json or .yaml extensions are supported for configuration."
 
 readMBotConfig ∷ Maybe FilePath → IO MakerBotConfig
 readMBotConfig mfp = do
-  e <- maybe decodeEnv eitherDecodeFileStrictJsonOrYaml mfp
+  e ← maybe decodeEnv eitherDecodeFileStrictJsonOrYaml mfp
   either (throwIO . userError) return e
 
 buildMakerBot ∷ MakerBotConfig → IO MakerBot
@@ -77,7 +77,7 @@ buildMakerBot
     user ← getUser mbcUser
     return
       MakerBot
-        { mbUser = user,
+        { mbUser  = user,
           mbDelay = mbcDelay,
           mbToken = mbcToken
         }
@@ -96,9 +96,9 @@ getDexInfo
 
     let porefs =
           PORefs
-            { porRefNft = porRefNft mbcPORefs,
+            { porRefNft  = porRefNft mbcPORefs,
               porMintRef = porMintRef mbcPORefs,
-              porValRef = porValRef mbcPORefs
+              porValRef  = porValRef mbcPORefs
             }
     return
       DEXInfo

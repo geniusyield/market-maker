@@ -73,10 +73,6 @@ data PriceConfigV1 = PriceConfigV1
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV1
 
--- | Needed to parse deprecated 'PriceConfigV1'
-defaultMaestroFailDelay ∷ Int
-defaultMaestroFailDelay = 100  -- TODO: what is a reasonable value to put here?
-
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     ∷ !PriceCommonCfg,
     pcPricesProviderCfgs ∷ !(NE.NonEmpty PricesProviderCfg)
@@ -90,8 +86,10 @@ data PriceCommonCfg = PriceCommonCfg
     pccPricesProvidersWeights ∷ ![Int],   -- ^ Corresponding to each @PricesProviderCfg@
     pccPriceDiffThreshold1    ∷ !Double,  -- ^ Triggers "mildly spooked"
     pccPriceDiffThreshold2    ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 >= Threshold1
-    pccPriceDiffDelay1        ∷ !Int,
-    pccPriceDiffDelay2        ∷ !Int
+    pccRespiteDelayFactor     ∷ !Double,  -- ^ Thread delay multiplier determining the respite delay when  "spooked"
+    pccAfterExitRelaxAim1     ∷ !Int,     -- ^ Relaxation time (in cycles) to return to normal after "mildly spooked"
+    pccAfterExitWorseMax1     ∷ !Int,     -- ^ Waiting time (in cycles) to transition from "mildly" to "very spooked"
+    pccAfterExitRelaxAim2     ∷ !Int      -- ^ Relaxation time (in cycles) to return to normal after "very spooked"
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
@@ -192,8 +190,10 @@ buildPP c dex pc =
           , pccPricesProvidersWeights = [1]
           , pccPriceDiffThreshold1    = 1
           , pccPriceDiffThreshold2    = 1
-          , pccPriceDiffDelay1        = 0       -- placeholder, unused
-          , pccPriceDiffDelay2        = defaultMaestroFailDelay
+          , pccRespiteDelayFactor     = 0.5     -- TODO: sensible value?
+          , pccAfterExitRelaxAim1     = 0       -- placeholder, unused
+          , pccAfterExitWorseMax1     = 0       -- placeholder, unused
+          , pccAfterExitRelaxAim2     = 10      -- TODO: sensible value?
           }
 
         , ppaPricesCluster = [ MaestroConfig
@@ -233,110 +233,111 @@ newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceErro
 buildGetQuota ∷ PriceCommonCfg → PricesProviderCfg → GetQuota
 
 buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
+  env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
+  res ← maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
+
+  (pairName, commodityIsA) ← case mcPairOverride of
+    -- We have to override with given details.
+    Just (MaestroPairOverride {..}) → do
+      pure (pack mpoPair, mpoCommodityIsFirst)
+    -- We are given commodity token and need to find pair name.
+    Nothing → do
+      allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
+
+      let go []           = throwIO MaestroPairNotFound
+          go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo mmtp dpi
+      first dexPairInfoPair <$> go allDexPairs
+
+  let pair = TaggedText pairName
+
+  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
+
+  offset ← case mcOffsetFilePath of  -- TESTING
+    Nothing   → pure 0
+    Just path → readOffset path `catch` handleReadError
+
+  let info = head ohlInfo
+      curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
+      comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
+      precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
+
+      price =
+        if commodityIsA
+          then ohlcCandleInfoCoinBClose info
+          else ohlcCandleInfoCoinAClose info
+
+      adjustedPrice = price * precisionDiff + offset
+
   maestroAvailable ← case mcAvailablePath of  -- TESTING
     Nothing   → pure True
     Just path → readBool path `catch` handleReadError
 
-  if not maestroAvailable then return $ Left SourceUnavailable else do
-    env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
-    res ← maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
+  if maestroAvailable
+    then return . Right $ Price (toRational adjustedPrice)
+    else return $ Left SourceUnavailable
 
-    (pairName, commodityIsA) ← case mcPairOverride of
-      -- We have to override with given details.
-      Just (MaestroPairOverride {..}) → do
-        pure (pack mpoPair, mpoCommodityIsFirst)
-      -- We are given commodity token and need to find pair name.
-      Nothing → do
-        allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
+  where
+    isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
+    isRelevantPairInfo mmtp dpi@DexPairInfo {..} =
+      ( (dpi, False)
+          <$ findMatchingMMTP mmtp
+            (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
+            (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
+      )
+        <|> ( (dpi, True)
+                <$ findMatchingMMTP mmtp
+                  (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
+                  (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
+            )
 
-        let go []           = throwIO MaestroPairNotFound
-            go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo mmtp dpi
-        first dexPairInfoPair <$> go allDexPairs
+    findMatchingMMTP ∷ MMTokenPair → (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+    findMatchingMMTP mmtp tokenA tokenB = fromRight Nothing $ do
+      assetClassA ← assetClassFromMaestro tokenA
+      assetClassB ← assetClassFromMaestro tokenB
+      Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
-    let pair = TaggedText pairName
-
-    ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
-
-    offset ← case mcOffsetFilePath of  -- TESTING
-      Nothing   → pure 0
-      Just path → readOffset path `catch` handleReadError
-
-    let info = head ohlInfo
-        curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
-        comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
-        precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
-
-        price =
-          if commodityIsA
-            then ohlcCandleInfoCoinBClose info
-            else ohlcCandleInfoCoinAClose info
-
-        adjustedPrice = price * precisionDiff + offset
-
-    return . Right $ Price (toRational adjustedPrice)
-
-    where
-      isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
-      isRelevantPairInfo mmtp dpi@DexPairInfo {..} =
-        ( (dpi, False)
-            <$ findMatchingMMTP mmtp
-              (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
-              (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
-        )
-          <|> ( (dpi, True)
-                  <$ findMatchingMMTP mmtp
-                    (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
-                    (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
-              )
-
-      findMatchingMMTP ∷ MMTokenPair → (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
-      findMatchingMMTP mmtp tokenA tokenB = fromRight Nothing $ do
-        assetClassA ← assetClassFromMaestro tokenA
-        assetClassB ← assetClassFromMaestro tokenB
-        Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
-
-      functionLocationIdent = "getMaestroPrice"
+    functionLocationIdent = "getMaestroPrice"
     
 buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → case pccNetworkId of
   GYMainnet → do
-    taptoolsAvailable ← case ttcAvailablePath of  -- TESTING
-      Nothing   → pure True
-      Just path → readBool path `catch` handleReadError
-        
-    if not taptoolsAvailable then return $ Left SourceUnavailable else do
-      (commodity ∷ Either (String, Natural) MMToken, commodityIsFirst ∷ Bool) ← 
-        case ttcPairOverride of
-          Just ttpo                             → pure (Left (ttpoAsset ttpo, ttpoPrecision $ ttpo), ttpoCommodityIsFirst ttpo)
-          Nothing
-            | mmtpCurrency mmtp  == mmtLovelace → pure (Right $ mmtpCommodity mmtp, False)
-            | mmtpCommodity mmtp == mmtLovelace → pure (Right $ mmtpCurrency mmtp, True)
-            | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
+    (commodity ∷ Either (String, Natural) MMToken) ← 
+      case ttcPairOverride of
+        Just ttpo                             → pure $ Left (ttpoAsset ttpo, ttpoPrecision ttpo)
+        Nothing
+          | mmtpCurrency mmtp  == mmtLovelace → pure . Right . mmtpCommodity $ mmtp
+          | mmtpCommodity mmtp == mmtLovelace → pure . Right . mmtpCurrency $ mmtp
+          | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
 
-      manager' ← taptoolsManager ttcApiKey
-      let env = mkClientEnv manager' taptoolsBaseUrl
+    manager' ← taptoolsManager ttcApiKey
+    let env = mkClientEnv manager' taptoolsBaseUrl
 
-      res ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
-      let interval = show res
+    res ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
+    let interval = show res
 
-      case commodity of
-        Right MMToken { mmtAc = GYLovelace } → return . Right $ Price (1 % 1)
-        _                                    → do
-          let (unit, precision) = case commodity of
-                Left (s, n)                                 → (s, n)
-                Right MMToken { mmtAc = GYToken cs tn, .. } → (show cs ++ show tn, fromIntegral mmtPrecision)
+    case commodity of
+      Right MMToken { mmtAc = GYLovelace } → return . Right $ Price (1 % 1)
+      _                                    → do
+        let (unit, precision) = case commodity of
+              Left (s, n)                                 → (s, n)
+              Right MMToken { mmtAc = GYToken cs tn, .. } → (show cs ++ show tn, fromIntegral mmtPrecision)
 
-          ohlcvInfo ← priceFromTaptools (Just unit) (Just interval) (Just 1) env
+        ohlcvInfo ← priceFromTaptools (Just unit) (Just interval) (Just 1) env
 
-          case ohlcvInfo of
-            Left _   → return $ Left SourceUnavailable
-            Right [] → return $ Left SourceUnavailable
-            Right (ttOHLCV : _) → do
-              let price'        = close ttOHLCV
-                  price         = if commodityIsFirst then 1 / price' else price'
-                  precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
-                  adjustedPrice = price * precisionDiff
+        case ohlcvInfo of
+          Left _   → return $ Left SourceUnavailable
+          Right [] → return $ Left SourceUnavailable
+          Right (ttOHLCV : _) → do
+            let price         = close ttOHLCV
+                precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
+                adjustedPrice = price * precisionDiff
 
-              return . Right . Price . toRational $ adjustedPrice
+            taptoolsAvailable ← case ttcAvailablePath of  -- TESTING
+              Nothing   → pure True
+              Just path → readBool path `catch` handleReadError
+
+            if taptoolsAvailable
+              then return . Right . Price . toRational $ adjustedPrice
+              else return $ Left SourceUnavailable
 
   _         → throwIO $ userError "Price unavailable."
 
@@ -378,10 +379,15 @@ priceEstimate pp mmtp = do
             | otherwise       = PriceAverage p
 
       return priceAnalyzed
+  where
+    matchRight ∷ Int → Either SourceError Price → Maybe (Rational, Rational)
+    matchRight w (Right p) = Just (fromIntegral w, getPrice p)
+    matchRight _ _         = Nothing
 
-matchRight ∷ Int → Either SourceError Price → Maybe (Rational, Rational)
-matchRight w (Right p) = Just (fromIntegral w, getPrice p)
-matchRight _ _         = Nothing
+priceEstimate' ∷ PricesProviders → MMToken → IO PriceIndicator
+priceEstimate' pp mmToken = priceEstimate pp mmtp
+  where
+    mmtp = mkMMTokenPair mmtLovelace mmToken
 
 
 -------------------------------------------------------------------------------

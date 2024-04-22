@@ -27,18 +27,22 @@ mbc_price_config:
     # Common resolution parameter for API call, for both prices providers. Available choices: CRes5m, CRes15m, CRes30m, CRes1h, CRes4h, CRes1d, CRes1w, CRes1mo.
     pcc_common_resolution: CRes15m  # example: 15 minutes
     pcc_network_id:  mainnet
-    # Relative weights in the computation of average price.
+    # Relative weights in the computation of average price. Example: 50% + 50%.
     pcc_prices_providers_weights:
-      - 1  # weight of first prices provider (integer)
-      - 1  # weight of second prices provider (integer)
+      - 50  # weight of first prices provider (integer)
+      - 50  # weight of second prices provider (integer)
     # Difference threshold triggering automatic cancelation of open orders, without warning.
     pcc_price_diff_threshold1: 0.3
     # Difference threshold triggering automatic cancelation of open orders, sending a warning.  Should not be smaller than Threshold1.
     pcc_price_diff_threshold2: 0.6
-    # Delay after closing all orders if Threshold1 is triggered.
-    pcc_price_diff_delay1:  60000000  # one minute (in microseconds)
-    # Delay after closing all orders if Threshold2 is triggered.
-    pcc_price_diff_delay2:  120000000  # two minutes
+    # Thread delay multiplier determining the respite delay after profilactic market exit.
+    pcc_respite_delay_factor: 0.2
+    # Relaxation time (in cycles) to return to normal after piercing threshold1.
+    pcc_after_exit_relax_aim1:  4
+    # Waiting time (in cycles) to start warning after piercing threshold1.
+    pcc_after_exit_worse_max1:  5
+    # Relaxation time (in cycles) to return to normal after piercing threshold2.
+    pcc_after_exit_relax_aim2:  8
   # Configuration parameters for each prices provider
   pc_prices_provider_cfgs:
     - tag: MaestroConfig

@@ -202,6 +202,7 @@ evolveStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                        _                 → do
                          lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for relaxation period to elapse."
                          put MBSpooked1 { mbsRelax1 = mbsRelax1 + 1, mbsWorse1 = mbsWorse1 }
+                         lift $ threadDelay respiteDelay
 
       MBSpooked2 {..} → do
         if mbsRelax2 > pccAfterExitRelaxAim2 cfg then do
@@ -232,6 +233,7 @@ evolveStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                _                 → do
                  lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for relaxation period to elapse."
                  put MBSpooked2 { mbsRelax2 = mbsRelax2 + 1 }
+                 lift $ threadDelay respiteDelay
         
 executeStrategy
   ∷ Strategy

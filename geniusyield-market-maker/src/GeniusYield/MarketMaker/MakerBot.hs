@@ -197,7 +197,7 @@ evolveStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                          lift $ gyLogInfo providers logNS $ "One prices provider has failed"
 
                        _                 → do
-                         lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for relaxation period to elapse."
+                         lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
                          put MBSpooked1 { mbsRelax1 = mbsRelax1 + 1, mbsWorse1 = mbsWorse1 }
 
                      lift $ threadDelay respiteDelay
@@ -226,7 +226,7 @@ evolveStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                  lift $ gyLogInfo providers logNS $ "One prices provider has failed"
 
                _                 → do
-                 lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for relaxation period to elapse."
+                 lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
                  put MBSpooked2 { mbsRelax2 = mbsRelax2 + 1 }
 
              lift $ threadDelay respiteDelay

@@ -150,8 +150,7 @@ data MaestroPairOverride = MaestroPairOverride
 
 data TaptoolsPairOverride = TaptoolsPairOverride
   { ttpoAsset            ∷ !String,
-    ttpoPrecision        ∷ !Natural,
-    ttpoCommodityIsFirst ∷ !Bool
+    ttpoPrecision        ∷ !Natural
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsPairOverride

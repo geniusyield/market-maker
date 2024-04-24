@@ -2,8 +2,7 @@ module GeniusYield.MarketMaker.Utils where
 
 import qualified Cardano.Api                      as Api
 import           Data.Aeson
-import qualified Data.ByteString.Lazy             as BL
-import           Data.ByteString.Char8            (pack)
+import           Data.Aeson.Types                 (typeMismatch)
 import qualified Data.Map                         as Map
 import           Data.Maybe                       (fromJust)
 import           Data.Proxy
@@ -75,9 +74,16 @@ instance HasPartialOrderConfigAddr DEXInfo where
 -- | Generic time resolution for OHLC Candles
 data CommonResolution = CRes5m | CRes15m | CRes30m | CRes1h | CRes4h
                       | CRes1d | CRes1w  | CRes1mo
-                      deriving stock (Eq, Ord, Show, Generic)
+                      deriving stock (Eq, Ord, Show)
 
-instance FromJSON CommonResolution
+instance FromJSON CommonResolution where
+    parseJSON (String v) =
+      let kvm = Map.fromList [ ("5m", CRes5m), ("15m", CRes15m), ("30m", CRes30m), ("1h", CRes1h),
+                               ("4h", CRes4h), ("1d", CRes1d), ("1w", CRes1w), ("1mo", CRes1mo) ]
+      in case Map.lookup v kvm of
+        Nothing   -> typeMismatch "CommonResolution" ""
+        Just cres -> pure cres
+    parseJSON invalid    = typeMismatch "CommonResolution" invalid
 
 class PriceResolution a where
   resolutionInherited :: Map.Map CommonResolution a
@@ -100,7 +106,15 @@ data TtResolution = TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h 
                   | TtRes1d | TtRes3d | TtRes1w  | TtRes1mo
                   deriving stock (Eq, Ord, Generic)
 
-instance FromJSON TtResolution
+instance FromJSON TtResolution where
+    parseJSON (String v) =
+      let kvm = Map.fromList [ ("3m", TtRes3m), ("5m", TtRes5m), ("15m", TtRes15m), ("30m", TtRes30m), ("1h", TtRes1h), ("2h", TtRes2h),
+                               ("4h", TtRes4h), ("12h", TtRes12h), ("1d", TtRes1d), ("3d", TtRes3d), ("1w", TtRes1w), ("1mo", TtRes1mo) ]
+      in case Map.lookup v kvm of
+        Nothing    -> typeMismatch "TtResolution" ""
+        Just ttres -> pure ttres
+    parseJSON invalid    = typeMismatch "TtResolution" invalid
+
 
 instance Show TtResolution where
   show = let kvm = Map.fromList [ (TtRes3m, "3m"), (TtRes5m, "5m"), (TtRes15m, "15m"), (TtRes30m, "30m")
@@ -160,12 +174,6 @@ taptoolsBaseUrl = BaseUrl Http "openapi.taptools.io" 80 "api/v1"
 
 priceFromTaptools :: Maybe TtUnit -> Maybe TtInterval -> Maybe Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
 priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUnit mbInterval mbNumIntervals)
-
--- | Get @GYAssetClass@ from string 'policyid.tokenname' in Hex format.
-taptoolsParseAsset :: String -> Maybe GYAssetClass
-taptoolsParseAsset s = let s' = "\"" ++ s ++ "\""
-                           bs = BL.fromStrict . pack $ s'
-                       in  Data.Aeson.decode @GYAssetClass bs
 
 
 -------------------------------------------------------------------------------

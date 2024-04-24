@@ -25,6 +25,5 @@ cabal.project.local~
 *.skey
 var/
 .envrc
-my-atlas-config-maestro.json
-my-preprod-maker-bot-config-gens.yaml
-my-preprod-maker-bot-config-gens-v2.yaml
+secrets/
+

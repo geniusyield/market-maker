@@ -149,7 +149,7 @@ data MaestroPairOverride = MaestroPairOverride
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
 data TaptoolsPairOverride = TaptoolsPairOverride
-  { ttpoAsset            ∷ !String,
+  { ttpoAsset            ∷ !GYAssetClass,
     ttpoPrecision        ∷ !Natural
   }
   deriving stock (Show, Generic)
@@ -301,9 +301,7 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
   GYMainnet → do
     commodity ∷ MMToken <-
       case ttcPairOverride of
-        Just ttpo                             → case taptoolsParseAsset . ttpoAsset $ ttpo of
-          Nothing      → throwIO $ userError "Could not parse 'ttpo_asset' (in 'ttc_pair_override')."
-          Just gyAsset → pure MMToken {mmtAc = gyAsset, mmtPrecision = ttpoPrecision ttpo}
+        Just ttpo → pure MMToken {mmtAc = ttpoAsset ttpo, mmtPrecision = ttpoPrecision ttpo}
         Nothing
           | mmtpCurrency mmtp  == mmtLovelace → pure . mmtpCommodity $ mmtp
           | mmtpCommodity mmtp == mmtLovelace → pure . mmtpCurrency $ mmtp
@@ -341,11 +339,11 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
             if taptoolsAvailable
               then return . Right . Price . toRational $ adjustedPrice
               else return $ Left SourceUnavailable
-      where
-        withoutQuotes ∷ String → String
-        withoutQuotes s = case s of
-          ('"':xs) | not (null xs) && last xs == '"' → init xs
-          _                                          → s
+        where
+          withoutQuotes ∷ String → String
+          withoutQuotes s = case s of
+            ('"':xs) | not (null xs) && last xs == '"' → init xs
+            _                                          → s
 
   _         → throwIO $ userError "Price unavailable."
 

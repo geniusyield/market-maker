@@ -48,6 +48,8 @@ mbc_price_config:
     - tag: MaestroConfig
       # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
       mc_api_key: <<MAESTRO_TOKEN>>
+      # Maestro resolution (overriding common resolution).  Options: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo.
+      # mc_resolution_override: 
       mc_dex: minswap
       # Alternative pair (for testing only).
       mc_pair_override:
@@ -58,8 +60,10 @@ mbc_price_config:
     - tag: TaptoolsConfig
       # Taptools API key.
       ttc_api_key: <<TAPTOOLS_TOKEN>>
+      # Taptools resolution (overriding common resolution). Options: 3m, 5m, 15m, 30m, 1h, 2h, 4h, 12h, 1d, 3d, 1w, 1mo
+      # ttc_resolution_override:
+      # Alternative asset with precision (for testing only).
       ttc_pair_override:
-        # Alternative asset (policyID + tokenName) to query for prices.  For testing only.
         ttpo_asset: dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53  # example: GENS
         ttpo_precision: 6
       ttc_available_path: "./taptools_available.txt"  # TESTING

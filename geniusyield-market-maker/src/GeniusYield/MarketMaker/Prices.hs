@@ -25,6 +25,7 @@ import           Deriving.Aeson
 import           GeniusYield.GYConfig
 import           GeniusYield.Imports                       (Proxy, when)
 import           GeniusYield.MarketMaker.Orphans           ()
+import           GeniusYield.MarketMaker.Prices.Taptools
 import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (Connection)

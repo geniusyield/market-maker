@@ -133,6 +133,7 @@ executable geniusyield-market-maker-exe
     GeniusYield.MarketMaker.MakerBotConfig
     GeniusYield.MarketMaker.Orphans
     GeniusYield.MarketMaker.Prices
+    GeniusYield.MarketMaker.Prices.Taptools
     GeniusYield.MarketMaker.Spread
     GeniusYield.MarketMaker.Strategies
     GeniusYield.MarketMaker.User

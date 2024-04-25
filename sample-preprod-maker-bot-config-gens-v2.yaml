@@ -24,13 +24,9 @@ mbc_delay: 120000000
 mbc_price_config:
   # Configuration parameters independent of prices providers.
   pc_price_common_cfg:
-    # Common resolution parameter for API call, for both prices providers. Available choices: CRes5m, CRes15m, CRes30m, CRes1h, CRes4h, CRes1d, CRes1w, CRes1mo.
+    # Common resolution parameter for API call, for both prices providers. Available choices: 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo.
     pcc_common_resolution: CRes15m  # example: 15 minutes
     pcc_network_id:  mainnet
-    # Relative weights in the computation of average price. Example: 50% + 50%.
-    pcc_prices_providers_weights:
-      - 50  # weight of first prices provider (integer)
-      - 50  # weight of second prices provider (integer)
     # Difference threshold triggering automatic cancelation of open orders, without warning.
     pcc_price_diff_threshold1: 0.3
     # Difference threshold triggering automatic cancelation of open orders, sending a warning.  Should not be smaller than Threshold1.
@@ -43,6 +39,10 @@ mbc_price_config:
     pcc_after_exit_worse_max1:  5
     # Relaxation time (in cycles) to return to normal after piercing threshold2.
     pcc_after_exit_relax_aim2:  8
+    # Relative weights in the computation of average price. Example: 50% (maestro) + 50% (taptools).
+    pcc_prices_providers_weights:
+      - 50  # Maestro
+      - 50  # Taptools
   # Configuration parameters for each prices provider
   pc_prices_provider_cfgs:
     - tag: MaestroConfig

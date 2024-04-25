@@ -84,13 +84,13 @@ data PriceConfigV2 = PriceConfigV2
 data PriceCommonCfg = PriceCommonCfg
   { pccCommonResolution       ∷ !CommonResolution,
     pccNetworkId              ∷ !GYNetworkId,
-    pccPricesProvidersWeights ∷ ![Int],   -- ^ Corresponding to each @PricesProviderCfg@
     pccPriceDiffThreshold1    ∷ !Double,  -- ^ Triggers "mildly spooked"
     pccPriceDiffThreshold2    ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 >= Threshold1
     pccRespiteDelayFactor     ∷ !Double,  -- ^ Thread delay multiplier determining the respite delay when  "spooked"
     pccAfterExitRelaxAim1     ∷ !Int,     -- ^ Relaxation time (in cycles) to return to normal after "mildly spooked"
     pccAfterExitWorseMax1     ∷ !Int,     -- ^ Waiting time (in cycles) to transition from "mildly" to "very spooked"
-    pccAfterExitRelaxAim2     ∷ !Int      -- ^ Relaxation time (in cycles) to return to normal after "very spooked"
+    pccAfterExitRelaxAim2     ∷ !Int,     -- ^ Relaxation time (in cycles) to return to normal after "very spooked"
+    pccPricesProvidersWeights ∷ ![Int]    -- ^ Corresponding to each @PricesProviderCfg@
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
@@ -187,13 +187,13 @@ buildPP c dex pc =
         { ppaCommonCfg = PriceCommonCfg
           { pccCommonResolution       = CRes5m  -- placeholder, unused
           , pccNetworkId              = pccNetworkId
-          , pccPricesProvidersWeights = [1]
           , pccPriceDiffThreshold1    = 1
           , pccPriceDiffThreshold2    = 1
           , pccRespiteDelayFactor     = 0.5     -- TODO: sensible value?
           , pccAfterExitRelaxAim1     = 0       -- placeholder, unused
           , pccAfterExitWorseMax1     = 0       -- placeholder, unused
           , pccAfterExitRelaxAim2     = 10      -- TODO: sensible value?
+          , pccPricesProvidersWeights = [1]
           }
 
         , ppaPricesCluster = [ MaestroConfig

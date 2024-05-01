@@ -33,6 +33,8 @@ common common-deps
     , servant ^>=0.19.1
     , servant-client ^>=0.19
     , split
+    , tasty
+    , tasty-hunit
     , text
     , time ^>=1.11.1.1
     , yaml
@@ -162,3 +164,45 @@ executable geniusyield-market-maker-exe
   default-language: Haskell2010
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
+
+test-suite pproviders-status-sequence
+  import:           common-lang
+  import:           common-deps
+  import:           common-ghc-opts
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test, src
+  main-is:          Main.hs
+  other-modules:
+    -- From 'src'
+    GeniusYield.MarketMaker.Constants
+    GeniusYield.MarketMaker.Equity
+    GeniusYield.MarketMaker.MakerBotConfig
+    GeniusYield.MarketMaker.Orphans
+    GeniusYield.MarketMaker.Prices.Taptools
+    GeniusYield.MarketMaker.Spread
+    GeniusYield.MarketMaker.User
+    GeniusYield.MarketMaker.Utils
+    -- From 'test'
+    GeniusYield.MarketMaker.MakerBot
+    GeniusYield.MarketMaker.Prices
+    GeniusYield.MarketMaker.Strategies
+    GeniusYield.MarketMaker.TestUtils
+  build-depends:    base
+                  , cardano-api
+                  , deriving-aeson
+                  , envy
+                  , geniusyield-annset
+                  , geniusyield-dex-api
+                  , geniusyield-market-maker:{datasource-providers, orderbook-annset}
+                  , geniusyield-orderbot-framework:common
+                  , ghc-typelits-knownnat
+                  , maestro-sdk
+                  , plutus-ledger-api
+                  , ply-core
+                  , tasty
+                  , tasty-hunit
+  ghc-options:      -Wall
+  default-language: Haskell2010
+  mixins:
+    geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)  
+    

@@ -85,7 +85,7 @@ The configuration values used for these environment variables in the example abo
 configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
 sending funds to the address given by the payment signing key and the (optional) stake address.
 
-In order to determine this address, you could use `cardano-cli address build`, but you can also just run the market maker - the address will be printed to the console in the first line of output:
+In order to determine this address, you could use `cardano-cli address build`, but you can also just run the market maker - the address will be printed as the first log of "Info" severity:
 
 ```
 Genius Yield Market Maker: <MARKET MAKER ADDRESS>

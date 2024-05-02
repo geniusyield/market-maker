@@ -87,11 +87,3 @@ mbc_token:
   ac: dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53
   # Registered decimal places for the token. As an examples, for `ADA` it is 6 and for `SNEK` it is 0.
   precision: 6
-# Boiler plate for Mainnet.
-mbc_fp_nft_policy: compiled-scripts/minting-policy
-mbc_fp_order_validator: compiled-scripts/partial-order
-mbc_po_config_addr: addr1w9zr09hgj7z6vz3d7wnxw0u4x30arsp5k8avlcm84utptls8uqd0z
-mbc_po_refs:
-  por_ref_nft: fae686ea8f21d567841d703dea4d4221c2af071a6f2b433ff07c0af2.4aff78908ef2dce98bfe435fb3fd2529747b1c4564dff5adebedf4e46d0fc63d
-  por_val_ref: 062f97b0e64130bc18b4a227299a62d6d59a4ea852a4c90db3de2204a2cd19ea#2
-  por_mint_ref: 062f97b0e64130bc18b4a227299a62d6d59a4ea852a4c90db3de2204a2cd19ea#1

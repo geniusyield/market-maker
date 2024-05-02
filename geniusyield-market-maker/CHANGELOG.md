@@ -1,5 +1,10 @@
 # Revision history for geniusyield-market-maker
 
+## 0.4.0 -- 2024-05-02
+
+* Supports latest version of [`dex-contracts-api`](https://github.com/geniusyield/dex-contracts-api) which adds support of v1.1 family of scripts.
+* Updates to latest version of Maestro's Haskell SDK.
+
 ## 0.3.0 -- 2024-04-11
 
 * Adds ability to specify different spread for each (sell & buy) side. The change is backwards compatible with respect to configuration.

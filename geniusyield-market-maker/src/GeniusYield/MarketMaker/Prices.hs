@@ -5,8 +5,7 @@ module GeniusYield.MarketMaker.Prices where
 import           Control.Applicative                       ((<|>))
 import           Control.Arrow                             (Arrow (first),
                                                             (&&&))
-import           Control.Exception                         (Exception, throwIO,
-                                                            try, catch, IOException, evaluate)
+import           Control.Exception                         (Exception, throwIO, try, catch)
 import           Control.Monad                             ((<=<))
 import           Data.Aeson                                (parseJSON)
 import           Data.ByteString.Char8                     (unpack)
@@ -48,7 +47,6 @@ import           GHC.TypeNats                              (SomeNat (SomeNat),
 import           Maestro.Client.V1
 import           Maestro.Types.V1                          as Maestro
 import           Servant.Client                            (mkClientEnv)
-import           System.IO                                 (withFile, IOMode(ReadMode), hGetContents)
 
 
 -- $setup
@@ -95,21 +93,35 @@ data PriceCommonCfg = PriceCommonCfg
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
 
+data MaestroConfig = MaestroConfig
+  { mcApiKey             ∷ !(Confidential Text),
+    mcResolutionOverride ∷ !(Maybe Maestro.Resolution),
+    mcDex                ∷ !Dex,
+    mcPairOverride       ∷ !(Maybe MaestroPairOverride)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroConfig
+
+data TaptoolsConfig = TaptoolsConfig
+  { ttcApiKey             ∷ !(Confidential Text),
+    ttcResolutionOverride ∷ !(Maybe TtResolution),
+    ttcPairOverride       ∷ !(Maybe TaptoolsPairOverride)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsConfig
+
+data MockConfig = MockConfig  -- For testing
+  { mokcPrice          ∷ !Double,
+    mokcOffsetPath     ∷ !(Maybe FilePath),
+    mokcAvailablePath  ∷ !(Maybe FilePath)
+  }
+  deriving stock (Show, Generic)
+  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MockConfig
+
 data PricesProviderCfg =
-    MaestroConfig
-    { mcApiKey             ∷ !(Confidential Text),
-      mcResolutionOverride ∷ !(Maybe Maestro.Resolution),
-      mcDex                ∷ !Dex,
-      mcPairOverride       ∷ !(Maybe MaestroPairOverride),
-      mcOffsetFilePath     ∷ !(Maybe FilePath),  -- TESTING
-      mcAvailablePath      ∷ !(Maybe FilePath)   -- TESTING
-    }
-  | TaptoolsConfig
-    { ttcApiKey             ∷ !(Confidential Text),
-      ttcResolutionOverride ∷ !(Maybe TtResolution),
-      ttcPairOverride       ∷ !(Maybe TaptoolsPairOverride),
-      ttcAvailablePath      ∷ !(Maybe FilePath)  -- TESTING
-    }
+    MaestroPPC MaestroConfig
+  | TaptoolsPPC TaptoolsConfig
+  | MockPPC MockConfig
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PricesProviderCfg
 
@@ -195,21 +207,18 @@ buildPP c dex pc =
           , pccAfterExitRelaxAim2     = 10      -- TODO: sensible value?
           , pccPricesProvidersWeights = [1]
           }
-
-        , ppaPricesCluster = [ MaestroConfig
+        , ppaPricesCluster = [ MaestroPPC MaestroConfig
             { mcApiKey             = mcApiKey
             , mcResolutionOverride = Just pcResolution
             , mcDex                = mcDex
             , mcPairOverride       = mcPairOverride
-            , mcOffsetFilePath     = Nothing  -- TESTING
-            , mcAvailablePath      = Nothing  -- TESTING
             } ]
         }
 
     PCVersion2 (PriceConfigV2 {..}) → do
       let ppaCommonCfg     = pcPriceCommonCfg
           thresHold1       = pccPriceDiffThreshold1 ppaCommonCfg
-          thresHold2       = pccPriceDiffThreshold1 ppaCommonCfg
+          thresHold2       = pccPriceDiffThreshold2 ppaCommonCfg
           ppaPricesCluster = NE.toList pcPricesProviderCfgs
 
       when (length (pccPricesProvidersWeights ppaCommonCfg) /= length ppaPricesCluster) $
@@ -232,7 +241,7 @@ newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceErro
 
 buildGetQuota ∷ PriceCommonCfg → PricesProviderCfg → GetQuota
 
-buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
+buildGetQuota PriceCommonCfg {..} (MaestroPPC MaestroConfig {..}) = GetQuota $ \mmtp → do
   env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
   res ← maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
 
@@ -250,31 +259,24 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
 
   let pair = TaggedText pairName
 
-  ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
+  -- ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
 
-  offset ← case mcOffsetFilePath of  -- TESTING
-    Nothing   → pure 0
-    Just path → readOffset path `catch` handleOffsetReadError
+  try (pricesFromDex env mcDex pair (Just res) (Just Descending)) >>= \fetch → case fetch of 
+    Left (_ ∷ MaestroPriceException) → return $ Left SourceUnavailable
+    Right ohlInfo → do
+      let info = head ohlInfo
+          curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
+          comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
+          precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
 
-  let info = head ohlInfo
-      curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
-      comPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCommodity mmtp
-      precisionDiff = 10 ** fromIntegral (curPrecision - comPrecision)
+          price =
+            if commodityIsA
+              then ohlcCandleInfoCoinBClose info
+              else ohlcCandleInfoCoinAClose info
 
-      price =
-        if commodityIsA
-          then ohlcCandleInfoCoinBClose info
-          else ohlcCandleInfoCoinAClose info
+          adjustedPrice = price * precisionDiff
 
-      adjustedPrice = price * precisionDiff + offset
-
-  maestroAvailable ← case mcAvailablePath of  -- TESTING
-    Nothing   → pure True
-    Just path → readBool path `catch` handleBoolReadError
-
-  if maestroAvailable
-    then return . Right $ Price (toRational adjustedPrice)
-    else return $ Left SourceUnavailable
+      return . Right . Price . toRational $ adjustedPrice
 
   where
     isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
@@ -297,8 +299,8 @@ buildGetQuota PriceCommonCfg {..} MaestroConfig {..} = GetQuota $ \mmtp → do
       Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
     functionLocationIdent = "getMaestroPrice"
-    
-buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → case pccNetworkId of
+
+buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $ \mmtp → case pccNetworkId of
   GYMainnet → do
     commodity ∷ MMToken <-
       case ttcPairOverride of
@@ -311,8 +313,7 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
     manager' ← taptoolsManager ttcApiKey
     let env = mkClientEnv manager' taptoolsBaseUrl
 
-    res ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
-    let interval = show res
+    resolution ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
 
     case commodity of
       MMToken { mmtAc = GYLovelace }                              → do
@@ -323,7 +324,7 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
             tn'       = withoutQuotes . show . tokenNameToHex $ tn
             unit      = cs' ++ tn'
         
-        ohlcvInfo ← priceFromTaptools (Just unit) (Just interval) (Just 1) env
+        ohlcvInfo ← priceFromTaptools (Just unit) (Just resolution) (Just 1) env
 
         case ohlcvInfo of
           Left _   → return $ Left SourceUnavailable
@@ -332,21 +333,31 @@ buildGetQuota PriceCommonCfg {..} TaptoolsConfig {..} = GetQuota $ \mmtp → cas
             let price         = close ttOHLCV
                 precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
                 adjustedPrice = price * precisionDiff
-
-            taptoolsAvailable ← case ttcAvailablePath of  -- TESTING
-              Nothing   → pure True
-              Just path → readBool path `catch` handleBoolReadError
-
-            if taptoolsAvailable
-              then return . Right . Price . toRational $ adjustedPrice
-              else return $ Left SourceUnavailable
+            return . Right . Price . toRational $ adjustedPrice
         where
           withoutQuotes ∷ String → String
           withoutQuotes s = case s of
             ('"':xs) | not (null xs) && last xs == '"' → init xs
             _                                          → s
 
-  _         → throwIO $ userError "Price unavailable."
+  _         → throwIO $ userError "Only Mainnet is supported."
+
+buildGetQuota _ (MockPPC MockConfig {..}) = GetQuota $ \_ → do
+  let price = mokcPrice
+  
+  offset ← case mokcOffsetPath of
+    Nothing   → pure 0
+    Just path → readOffset path `catch` handleOffsetReadError
+
+  let adjustedPrice = price + offset
+
+  mock1Available ← case mokcAvailablePath of
+    Nothing   → pure True
+    Just path → readBool path `catch` handleBoolReadError
+
+  if mock1Available
+    then return . Right . Price . toRational $ adjustedPrice
+    else return $ Left SourceUnavailable
 
 buildGetQuotas ∷ PricesProviders → [GetQuota]
 buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> ppaPricesCluster
@@ -503,30 +514,3 @@ throwMspvApiError locationInfo =
 handleMaestroError ∷ Text → Either MaestroError a → IO a
 handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
--------------------------------------------------------------------------------
--- Testing Helper Functions
--------------------------------------------------------------------------------
-
-readOffset ∷ FilePath → IO Double
-readOffset filePath = withFile filePath ReadMode $ \handle → do
-  contents ← hGetContents handle
-  _ ← evaluate (length contents)  -- Forces actual read
-  let parsed = reads contents ∷ [(Double, String)]
-  case parsed of
-      [(num, _)] → return num
-      _          → return 0
-
-handleOffsetReadError ∷ IOException → IO Double
-handleOffsetReadError _ = return 0
-
-readBool ∷ FilePath → IO Bool
-readBool filePath = withFile filePath ReadMode $ \handle → do
-  contents ← hGetContents handle
-  _ ← evaluate (length contents)  -- Forces actual read
-  let parsed = reads contents ∷ [(Bool, String)]
-  case parsed of
-    [(bool, _)] → return bool
-    _           → return True
-
-handleBoolReadError ∷ IOException → IO Bool
-handleBoolReadError _ = return True

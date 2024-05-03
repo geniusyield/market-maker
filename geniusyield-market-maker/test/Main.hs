@@ -3,15 +3,15 @@ module Main (main) where
 import           Control.Concurrent.MVar
 import           Control.Exception                         (throwIO)
 import           GeniusYield.GYConfig
-import           GeniusYield.MarketMaker.MakerBot
 import           GeniusYield.MarketMaker.MakerBotConfig
+import           GeniusYield.MarketMaker.MakerBot          (MakerBot(..), cancelAllOrders')
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
 import           GeniusYield.MarketMaker.Utils             (addrUser)
-import           GeniusYield.MarketMaker.TestUtils
+import           GeniusYield.Test.MarketMaker.MakerBot
+import           GeniusYield.Test.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (connectDB)
 import           GeniusYield.Types                         (addressToText, gyLog', GYLog(..))
--- import           System.Environment
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
@@ -19,32 +19,13 @@ import           Test.Tasty.HUnit
 -----------------------------------------------------------------------
 ----------------------------- MAIN ------------------------------------
 
-{-
-parseArgs :: IO (String, FilePath, Maybe FilePath)
-parseArgs = do
-  args <- getArgs
-  case args of
-    [action, frameworkCfgPath, mBotConfigFile] -> return (action, frameworkCfgPath, Just mBotConfigFile)
-    [action, frameworkCfgPath]                 -> return (action, frameworkCfgPath, Nothing)
-    _ ->
-      throwIO
-        . userError
-        $ unlines
-          [ "Expected 2 or 3 command line arguments, in order: ",
-            "  1. Action to execute, either 'Run' or 'Cancel'.",
-            "  2. Path to the Atlas config-file.",
-            "  3. Path to the maker bot config file (optional). If not provided, required information is fetched from environment variables."
-          ]
--}
-
 runSequence :: IO Bool
 runSequence = do
   logRef  <- newMVar []
 
-  -- (action, frameworkCfgPath, mBotConfigFile) <- parseArgs
   let action           = "Run"
   let frameworkCfgPath = "../secrets/my-atlas-config-maestro.json"
-      mBotConfigFile   = Just "../secrets/my-preprod-maker-bot-config-gens-v2.yaml"
+      mBotConfigFile   = Just "../secrets/my-preprod-maker-bot-config-gens-v2-test.yaml"
 
   coreCfg <- coreConfigIO frameworkCfgPath
   mbc     <- readMBotConfig mBotConfigFile

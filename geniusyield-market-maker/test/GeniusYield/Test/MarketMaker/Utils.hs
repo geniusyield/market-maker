@@ -1,18 +1,20 @@
-module GeniusYield.MarketMaker.TestUtils where
+module GeniusYield.Test.MarketMaker.Utils where
 
 import           Data.List                         (isInfixOf, findIndex)
 import           Control.Concurrent.MVar
+import           Control.Exception                 (IOException, throwIO, catch, displayException)
 import           Control.Monad                     (foldM)
 import           Control.Monad.State               (StateT)
 import           GeniusYield.MarketMaker.Constants (logNS)
+import           GeniusYield.MarketMaker.Prices    (PricesProviderCfg(..), MockConfig)
 import           GeniusYield.Types
 
 
-data PPStatus = PPStatus { maestroOffset :: Double, maestroAvailable :: Bool, taptoolsAvailable :: Bool }
+data PPStatus = PPStatus { pps1Offset :: Double, pps1Available :: Bool, pps2Available :: Bool }
   deriving stock Show
 
 normalPPStatus :: PPStatus
-normalPPStatus = PPStatus { maestroOffset = 0, maestroAvailable = True, taptoolsAvailable = True }
+normalPPStatus = PPStatus { pps1Offset = 0, pps1Available = True, pps2Available = True }
 
 newtype MBLog = MBLog (GYLogSeverity, GYLogNamespace, String)
   deriving newtype Show
@@ -28,7 +30,7 @@ augmentedLogRun logRef f ns s msg = do
   modifyMVar_ logRef $ \current -> pure $ current ++ [LDLog (MBLog (s, ns, msg))]
 
   logRef' <- readMVar logRef
-  writeFile "./mmbot.log" (show logRef')
+  writeFile "./test/mmbot.log" (show logRef')
   
   f ns s msg
 
@@ -36,13 +38,14 @@ mbTest :: forall a. (PPStatus -> StateT a IO ()) -> StateT a IO ()
 mbTest f = foldM (const f) () testSequence
 
 examineLog :: [LogData] -> Bool
-examineLog = areEventsOrdered testRequirements 
+examineLog = areEventsOrdered testRequirements
 
 
 -------------------------------------------------------------------------------
 -- Test Sequence & Requirements
 -------------------------------------------------------------------------------
 
+-- | This test assumes that, previously, all orders have been cancelled.
 testSequence :: [PPStatus]
 testSequence = [ normalPPStatus,
                  PPStatus 0 False True,                           -- Maestro fails
@@ -80,7 +83,7 @@ msgTxOnChain = "Tx successfully seen on chain"
 msgDoneForTheBlock = "Done for the block!"
 msgOnePProviderFailed = "One prices provider failed"
 msgOutrageousMismatch = "Closed all orders due to: outrageous price mismatch among Prices Providers"
-msgOutrageousPersists = "Outrageous price mismatch persist"
+msgOutrageousPersists = "Outrageous price mismatch persists"
 msgCancelOrderBatch = "Submitted a cancel order batch"
 msgNoMoreOrdersToCancel = "No more orders to cancel!"
 msgApparentRecovery = "Apparent recovery of Prices Providers"
@@ -88,7 +91,7 @@ msgResumingStrategy = "Resuming strategy"
 
 
 -------------------------------------------------------------------------------
--- Helper functions
+-- Testing helper functions
 -------------------------------------------------------------------------------
 
 isOrdered :: [Int] -> Bool
@@ -124,3 +127,23 @@ isMBLog (s, msg) ld = case ld of
 isMBLogInfo, isMBLogWarning :: String -> LogData -> Bool
 isMBLogInfo msg    = isMBLog (GYInfo, msg)
 isMBLogWarning msg = isMBLog (GYWarning, msg)
+
+
+-------------------------------------------------------------------------------
+-- IO helper functions
+-------------------------------------------------------------------------------
+
+writeFlags :: FilePath -> FilePath -> FilePath -> PPStatus -> IO ()
+writeFlags fp1o fp1b fp2b (PPStatus o1 b1 b2) = do
+  writeFile fp1o (show o1) `catch` handleWriteError
+  writeFile fp1b (show b1) `catch` handleWriteError
+  writeFile fp2b (show b2) `catch` handleWriteError
+
+handleWriteError :: IOException -> IO ()
+handleWriteError e = throwIO $ userError $ displayException e
+
+getMock :: PricesProviderCfg -> IO MockConfig
+getMock ppc = case ppc of
+  MockPPC mockCfg -> return mockCfg
+  _               -> throwIO $ userError "Mock prices provider not configured."
+

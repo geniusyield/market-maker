@@ -1,12 +1,14 @@
 module GeniusYield.MarketMaker.Utils where
 
 import qualified Cardano.Api                      as Api
+import           Control.Exception                (Exception(displayException), IOException,
+                                                   evaluate, throwIO) 
 import           Data.Aeson
 import           Data.Aeson.Types                 (typeMismatch)
 import qualified Data.Map                         as Map
 import qualified Data.Text                        as Text
 import           GeniusYield.Api.Dex.PartialOrder (PORefs)
-import           GeniusYield.Imports              (coerce, first, throwIO, (&))
+import           GeniusYield.Imports              (coerce, first, (&))
 import           GeniusYield.MarketMaker.User     (Secret (getSecret),
                                                    User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
@@ -21,6 +23,8 @@ import           PlutusLedgerApi.V1.Value         (AssetClass)
 import           PlutusLedgerApi.V2               (Address)
 import           Ply                              (ScriptRole (..), TypedScript)
 import           Unsafe.Coerce                    (unsafeCoerce)
+import           System.IO                        (withFile, IOMode(ReadMode), hGetContents)
+
 
 camelToSnake :: String -> String
 camelToSnake = camelTo2 '_'
@@ -115,3 +119,32 @@ relStdDev' :: [Double] -> Double
 relStdDev' sample = let avg = mean sample
                         sqs = (\x -> (x - avg) ** 2) <$> sample
                     in  (sqrt . mean $ sqs) / avg
+
+
+-------------------------------------------------------------------------------
+-- Testing helper functions
+-------------------------------------------------------------------------------
+
+readOffset :: FilePath -> IO Double
+readOffset filePath = withFile filePath ReadMode $ \handle -> do
+  contents <- hGetContents handle
+  _ <- evaluate (length contents)  -- Forces actual read
+  let parsed = reads contents :: [(Double, String)]
+  case parsed of
+      [(num, _)] -> return num
+      _          -> return 0
+
+handleOffsetReadError :: IOException -> IO Double
+handleOffsetReadError e = throwIO $ userError $ displayException e
+
+readBool :: FilePath -> IO Bool
+readBool filePath = withFile filePath ReadMode $ \handle -> do
+  contents <- hGetContents handle
+  _ <- evaluate (length contents)  -- Forces actual read
+  let parsed = reads contents :: [(Bool, String)]
+  case parsed of
+    [(bool, _)] -> return bool
+    _           -> return True
+
+handleBoolReadError :: IOException -> IO Bool
+handleBoolReadError e = throwIO $ userError $ displayException e

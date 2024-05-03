@@ -121,14 +121,12 @@ library orderbook-annset
 
   exposed-modules: GeniusYield.OrderBot.OrderBook.AnnSet
 
--- Build targets
-
-executable geniusyield-market-maker-exe
+library geniusyield-market-maker-lib
   import:           common-lang
   import:           common-deps
   import:           common-ghc-opts
-  main-is:          Main.hs
-  other-modules:
+  hs-source-dirs:   src
+  exposed-modules:
     GeniusYield.MarketMaker.Constants
     GeniusYield.MarketMaker.Equity
     GeniusYield.MarketMaker.MakerBot
@@ -140,7 +138,6 @@ executable geniusyield-market-maker-exe
     GeniusYield.MarketMaker.Strategies
     GeniusYield.MarketMaker.User
     GeniusYield.MarketMaker.Utils
-
   build-depends:
     , cardano-api
     , deriving-aeson
@@ -158,8 +155,21 @@ executable geniusyield-market-maker-exe
     , random
     , random-fu
     , vector
+  ghc-options:      -Wall
+  default-language: Haskell2010
+  mixins:
+    geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
 
-  hs-source-dirs:   . src
+-- Build targets
+
+executable geniusyield-market-maker-exe
+  import:           common-lang
+  import:           common-deps
+  import:           common-ghc-opts
+  main-is:          Main.hs
+  build-depends:
+    geniusyield-market-maker:{datasource-providers, orderbook-annset, geniusyield-market-maker-lib}
+  hs-source-dirs:   .
   ghc-options:      -Wall
   default-language: Haskell2010
   mixins:
@@ -170,30 +180,18 @@ test-suite pproviders-status-sequence
   import:           common-deps
   import:           common-ghc-opts
   type:             exitcode-stdio-1.0
-  hs-source-dirs:   test, src
+  hs-source-dirs:   test
   main-is:          Main.hs
   other-modules:
-    -- From 'src'
-    GeniusYield.MarketMaker.Constants
-    GeniusYield.MarketMaker.Equity
-    GeniusYield.MarketMaker.MakerBotConfig
-    GeniusYield.MarketMaker.Orphans
-    GeniusYield.MarketMaker.Prices.Taptools
-    GeniusYield.MarketMaker.Spread
-    GeniusYield.MarketMaker.User
-    GeniusYield.MarketMaker.Utils
-    -- From 'test'
-    GeniusYield.MarketMaker.MakerBot
-    GeniusYield.MarketMaker.Prices
-    GeniusYield.MarketMaker.Strategies
-    GeniusYield.MarketMaker.TestUtils
+    GeniusYield.Test.MarketMaker.MakerBot
+    GeniusYield.Test.MarketMaker.Utils
   build-depends:    base
                   , cardano-api
                   , deriving-aeson
                   , envy
                   , geniusyield-annset
                   , geniusyield-dex-api
-                  , geniusyield-market-maker:{datasource-providers, orderbook-annset}
+                  , geniusyield-market-maker:{datasource-providers, orderbook-annset, geniusyield-market-maker-lib}
                   , geniusyield-orderbot-framework:common
                   , ghc-typelits-knownnat
                   , maestro-sdk

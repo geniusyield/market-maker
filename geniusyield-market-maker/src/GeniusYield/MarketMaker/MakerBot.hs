@@ -130,6 +130,104 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
     gyAwaitTxConfirmed providers awaitTxParams tid
     logInfo $ printf "Tx successfully seen on chain with %d confirmation(s)" numConfirms
 
+mbStateMachine ∷ Strategy
+               → MakerBot
+               → GYNetworkId
+               → GYProviders
+               → PricesProviders
+               → DEXInfo
+               → MBFret
+               → StateT MBFret IO ()
+mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId providers pp di mbFret = do
+  let cfg          = ppaCommonCfg . pricesAggregatorPP $ pp
+      respiteDelay = ceiling $ pccRespiteDelayFactor cfg * fromIntegral mbDelay
+
+  case mbFret of
+    MBReady → do
+      (newActions, controller) ← lift $ runStrategy pp mbUser mbToken
+      case controller of
+        UACNormal     → do
+          lift $ buildAndSubmitActions mbUser providers netId newActions di
+
+          lift $ gyLogInfo providers logNS "---------- Done for the block! -----------"
+          lift $ threadDelay mbDelay
+
+        UACSpooked1   → do
+          put MBSpooked1 { mbs1Relax = 0, mbs1Worse = 0 }
+          lift $ gyLogInfo providers logNS "Closed all orders due to price mismatch among Prices Providers"
+
+          lift $ cancelAllOrders' mb netId providers di
+          lift $ threadDelay respiteDelay
+
+        UACSpooked2 e → do
+          put MBSpooked2 { mbs2Relax = 0 }
+          lift $ gyLogWarning providers logNS $ "Closed all orders due to: " ++ e
+
+          lift $ cancelAllOrders' mb netId providers di
+          lift $ threadDelay respiteDelay
+
+    MBSpooked1 {..} → do
+      if mbs1Relax > pccAfterExitRelaxAim1 cfg then do
+           lift $ gyLogInfo providers logNS $ "Resuming strategy"
+           put MBReady
+         else if mbs1Worse > pccAfterExitWorseMax1 cfg
+                 then do
+                   lift $ gyLogWarning providers logNS $ "Price mismatch among providers lasting a long time!"
+                   put MBSpooked2 { mbs2Relax = 0 }
+                 else do
+                   pe ← lift $ priceEstimate' pp mbToken
+
+                   case pe of
+                     PriceMismatch1    → do
+                       lift $ gyLogInfo providers logNS $ "Price mismatch persists"
+                       put MBSpooked1 { mbs1Relax = 0, mbs1Worse = mbs1Worse + 1 }
+
+                     PriceMismatch2    → do
+                       lift $ gyLogWarning providers logNS $ "Outrageous price mismatch among providers!"
+                       put MBSpooked2 { mbs2Relax = 0 }
+
+                     PriceUnavailable  → do
+                       lift $ gyLogWarning providers logNS $ "All Prices Providers unavailable!"
+                       put MBSpooked2 { mbs2Relax = 0 }
+
+                     PriceSourceFail _ → do
+                       lift $ gyLogInfo providers logNS $ "One prices provider has failed"
+
+                     _                 → do
+                       lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
+                       put MBSpooked1 { mbs1Relax = mbs1Relax + 1, mbs1Worse = mbs1Worse }
+
+                   lift $ threadDelay respiteDelay
+
+    MBSpooked2 {..} → do
+      if mbs2Relax > pccAfterExitRelaxAim2 cfg then do
+           lift $ gyLogInfo providers logNS $ "Resuming strategy"
+           put MBReady
+         else do
+           pe ← lift $ priceEstimate' pp mbToken
+
+           case pe of
+             PriceMismatch1    → do
+               lift $ gyLogWarning providers logNS $ "Price mismatch persists"
+               put MBSpooked2 { mbs2Relax = 0 }
+
+             PriceMismatch2    → do
+               lift $ gyLogWarning providers logNS $ "Outrageous price mismatch persists"
+               put MBSpooked2 { mbs2Relax = 0 }
+
+             PriceUnavailable  → do
+               lift $ gyLogWarning providers logNS $ "All Prices Providers unavailable"
+               put MBSpooked2 { mbs2Relax = 0 }
+
+             PriceSourceFail _ → do
+               lift $ gyLogInfo providers logNS $ "One prices provider has failed"
+
+             _                 → do
+               lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
+               put MBSpooked2 { mbs2Relax = mbs2Relax + 1 }
+
+           lift $ threadDelay respiteDelay
+
 evolveStrategy
   ∷ Strategy
   → MakerBot
@@ -138,98 +236,8 @@ evolveStrategy
   → PricesProviders
   → DEXInfo
   → StateT MBFret IO ()
-evolveStrategy runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId providers pp di = do
-  let cfg          = ppaCommonCfg . pricesAggregatorPP $ pp
-      respiteDelay = ceiling $ pccRespiteDelayFactor cfg * fromIntegral mbDelay
-  
-  forever $ do
-    mbFret ← get
-
-    case mbFret of
-      MBReady → do
-        (newActions, controller) ← lift $ runStrategy pp mbUser mbToken
-        case controller of
-          UACNormal     → do
-            lift $ buildAndSubmitActions mbUser providers netId newActions di
-
-            lift $ gyLogInfo providers logNS "---------- Done for the block! -----------"
-            lift $ threadDelay mbDelay
-
-          UACSpooked1   → do
-            put MBSpooked1 { mbs1Relax = 0, mbs1Worse = 0 }
-            lift $ gyLogInfo providers logNS "Closed all orders due to price mismatch among Prices Providers"
-
-            lift $ cancelAllOrders' mb netId providers di
-            lift $ threadDelay respiteDelay
-
-          UACSpooked2 e → do
-            put MBSpooked2 { mbs2Relax = 0 }
-            lift $ gyLogWarning providers logNS $ "Closed all orders due to: " ++ e
-
-            lift $ cancelAllOrders' mb netId providers di
-            lift $ threadDelay respiteDelay
-
-      MBSpooked1 {..} → do
-        if mbs1Relax > pccAfterExitRelaxAim1 cfg then do
-             lift $ gyLogInfo providers logNS $ "Resuming strategy"
-             put MBReady
-           else if mbs1Worse > pccAfterExitWorseMax1 cfg
-                   then do
-                     lift $ gyLogWarning providers logNS $ "Price mismatch among providers lasting a long time!"
-                     put MBSpooked2 { mbs2Relax = 0 }
-                   else do
-                     pe ← lift $ priceEstimate' pp mbToken
-
-                     case pe of
-                       PriceMismatch1    → do
-                         lift $ gyLogInfo providers logNS $ "Price mismatch persists"
-                         put MBSpooked1 { mbs1Relax = 0, mbs1Worse = mbs1Worse + 1 }
-
-                       PriceMismatch2    → do
-                         lift $ gyLogWarning providers logNS $ "Outrageous price mismatch among providers!"
-                         put MBSpooked2 { mbs2Relax = 0 }
-
-                       PriceUnavailable  → do
-                         lift $ gyLogWarning providers logNS $ "All Prices Providers unavailable!"
-                         put MBSpooked2 { mbs2Relax = 0 }
-
-                       PriceSourceFail _ → do
-                         lift $ gyLogInfo providers logNS $ "One prices provider has failed"
-
-                       _                 → do
-                         lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
-                         put MBSpooked1 { mbs1Relax = mbs1Relax + 1, mbs1Worse = mbs1Worse }
-
-                     lift $ threadDelay respiteDelay
-
-      MBSpooked2 {..} → do
-        if mbs2Relax > pccAfterExitRelaxAim2 cfg then do
-             lift $ gyLogInfo providers logNS $ "Resuming strategy"
-             put MBReady
-           else do
-             pe ← lift $ priceEstimate' pp mbToken
-
-             case pe of
-               PriceMismatch1    → do
-                 lift $ gyLogWarning providers logNS $ "Price mismatch persists"
-                 put MBSpooked2 { mbs2Relax = 0 }
-
-               PriceMismatch2    → do
-                 lift $ gyLogWarning providers logNS $ "Outrageous price mismatch persists"
-                 put MBSpooked2 { mbs2Relax = 0 }
-
-               PriceUnavailable  → do
-                 lift $ gyLogWarning providers logNS $ "All Prices Providers unavailable"
-                 put MBSpooked2 { mbs2Relax = 0 }
-
-               PriceSourceFail _ → do
-                 lift $ gyLogInfo providers logNS $ "One prices provider has failed"
-
-               _                 → do
-                 lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
-                 put MBSpooked2 { mbs2Relax = mbs2Relax + 1 }
-
-             lift $ threadDelay respiteDelay
+evolveStrategy runStrategy mb netId providers pp di =
+  forever $ get >>= mbStateMachine runStrategy mb netId providers pp di
         
 executeStrategy
   ∷ Strategy

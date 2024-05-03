@@ -2,7 +2,10 @@ module Main (main) where
 
 import           Control.Concurrent.MVar
 import           Control.Exception                         (throwIO)
+import           GeniusYield.Api.Dex.Constants             (dexInfoDefaultMainnet,
+                                                            dexInfoDefaultPreprod)
 import           GeniusYield.GYConfig
+import           GeniusYield.MarketMaker.Constants         (logNS)
 import           GeniusYield.MarketMaker.MakerBotConfig
 import           GeniusYield.MarketMaker.MakerBot          (MakerBot(..), cancelAllOrders')
 import           GeniusYield.MarketMaker.Prices
@@ -11,7 +14,9 @@ import           GeniusYield.MarketMaker.Utils             (addrUser)
 import           GeniusYield.Test.MarketMaker.MakerBot
 import           GeniusYield.Test.MarketMaker.Utils
 import           GeniusYield.OrderBot.DataSource.Providers (connectDB)
-import           GeniusYield.Types                         (addressToText, gyLog', GYLog(..))
+import           GeniusYield.Types                         (GYNetworkId (..), addressToText,
+                                                            gyLog', GYLog(..))
+import           GeniusYield.Types.Providers               (gyLogInfo)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
@@ -30,10 +35,11 @@ runSequence = do
   coreCfg <- coreConfigIO frameworkCfgPath
   mbc     <- readMBotConfig mBotConfigFile
   mb      <- buildMakerBot mbc
-  di      <- getDexInfo mbc
-
-  putStrLn $ "Genius Yield Market Maker: "
-    ++ show (addressToText $ addrUser (cfgNetworkId coreCfg) $ mbUser mb)
+  di      <-
+    case cfgNetworkId coreCfg of
+      GYTestnetPreprod -> pure dexInfoDefaultPreprod
+      GYMainnet -> pure dexInfoDefaultMainnet
+      _ -> throwIO $ userError "Only Preprod and Mainnet are supported."
 
   let netId = cfgNetworkId coreCfg
   withCfgProviders coreCfg "" $ \providers' -> do
@@ -42,6 +48,10 @@ runSequence = do
         logRunNew   = augmentedLogRun logRef logRunGiven
         gyLogNew    = gyLogGiven { logRun = logRunNew }
         providers   = providers' { gyLog' = gyLogNew }
+
+    gyLogInfo providers logNS $
+         "Genius Yield Market Maker: "
+      ++ show (addressToText $ addrUser (cfgNetworkId coreCfg) $ mbUser mb)
 
     case action of
       "Run"    -> do

@@ -21,9 +21,9 @@ import           Data.Maybe                                (fromJust, catMaybes)
 import           Data.Ratio                                ((%))
 import           Data.Text                                 (Text, pack)
 import           Deriving.Aeson
+import           GeniusYield.Api.Dex.Constants             (DEXInfo (..))
 import           GeniusYield.GYConfig
 import           GeniusYield.Imports                       (Proxy, when)
-import           GeniusYield.MarketMaker.Orphans           ()
 import           GeniusYield.MarketMaker.Prices.Taptools
 import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.Utils
@@ -252,16 +252,25 @@ buildGetQuota PriceCommonCfg {..} (MaestroPPC MaestroConfig {..}) = GetQuota $ \
     -- We are given commodity token and need to find pair name.
     Nothing → do
       allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
-
+      -- TODO: Remove it once Maestro is able to return for it.
+      let adaUsdmPair =
+            DexPairInfo
+              { dexPairInfoCoinBPolicy = "c48cbb3d5e57ed56e276bc45f99ab39abe94e6cd7ac39fb402da47ad",
+                dexPairInfoCoinBAssetName = "0014df105553444d",
+                dexPairInfoCoinAPolicy = "",
+                dexPairInfoCoinAAssetName = "",
+                dexPairInfoPair = "ADA-USDM"
+              }
       let go []           = throwIO MaestroPairNotFound
           go (dpi : dpis) = maybe (go dpis) pure $ isRelevantPairInfo mmtp dpi
-      first dexPairInfoPair <$> go allDexPairs
+      first dexPairInfoPair <$> go (adaUsdmPair : allDexPairs)
+
 
   let pair = TaggedText pairName
 
-  -- ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) (Just Descending)
+  -- ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) Nothing Nothing Nothing (Just Descending)
 
-  try (pricesFromDex env mcDex pair (Just res) (Just Descending)) >>= \fetch → case fetch of 
+  try (pricesFromDex env mcDex pair (Just res) Nothing Nothing Nothing (Just Descending)) >>= \fetch → case fetch of 
     Left (_ ∷ MaestroPriceException) → return $ Left SourceUnavailable
     Right ohlInfo → do
       let info = head ohlInfo
@@ -277,28 +286,27 @@ buildGetQuota PriceCommonCfg {..} (MaestroPPC MaestroConfig {..}) = GetQuota $ \
           adjustedPrice = price * precisionDiff
 
       return . Right . Price . toRational $ adjustedPrice
+ where
+  isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
+  isRelevantPairInfo mmtp dpi@DexPairInfo {..} =
+    ( (dpi, False)
+        <$ findMatchingMMTP mmtp
+          (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
+          (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
+    )
+      <|> ( (dpi, True)
+              <$ findMatchingMMTP mmtp
+                (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
+                (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
+          )
 
-  where
-    isRelevantPairInfo ∷ MMTokenPair → DexPairInfo → Maybe (DexPairInfo, Bool)
-    isRelevantPairInfo mmtp dpi@DexPairInfo {..} =
-      ( (dpi, False)
-          <$ findMatchingMMTP mmtp
-            (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
-            (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
-      )
-        <|> ( (dpi, True)
-                <$ findMatchingMMTP mmtp
-                  (dexPairInfoCoinBAssetName, dexPairInfoCoinBPolicy)
-                  (dexPairInfoCoinAAssetName, dexPairInfoCoinAPolicy)
-            )
+  findMatchingMMTP ∷ MMTokenPair → (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
+  findMatchingMMTP mmtp tokenA tokenB = fromRight Nothing $ do
+    assetClassA ← assetClassFromMaestro tokenA
+    assetClassB ← assetClassFromMaestro tokenB
+    Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
 
-    findMatchingMMTP ∷ MMTokenPair → (TokenName, PolicyId) → (TokenName, PolicyId) → Maybe MMTokenPair
-    findMatchingMMTP mmtp tokenA tokenB = fromRight Nothing $ do
-      assetClassA ← assetClassFromMaestro tokenA
-      assetClassB ← assetClassFromMaestro tokenB
-      Right $ if assetClassA == mmtAc (mmtpCurrency mmtp) && assetClassB == mmtAc (mmtpCommodity mmtp) then Just mmtp else Nothing
-
-    functionLocationIdent = "getMaestroPrice"
+  functionLocationIdent = "getMaestroPrice"
 
 buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $ \mmtp → case pccNetworkId of
   GYMainnet → do

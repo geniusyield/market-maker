@@ -7,21 +7,20 @@ import           Data.Aeson
 import           Data.Aeson.Types                 (typeMismatch)
 import qualified Data.Map                         as Map
 import qualified Data.Text                        as Text
-import           GeniusYield.Api.Dex.PartialOrder (PORefs)
+-- import           GeniusYield.Api.Dex.PartialOrder (PORefs)
 import           GeniusYield.Imports              (coerce, first, (&))
-import           GeniusYield.MarketMaker.User     (Secret (getSecret),
-                                                   User (..))
+import           GeniusYield.MarketMaker.User     (Secret (getSecret), User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
-import           GeniusYield.Scripts              (HasPartialOrderConfigAddr (..),
-                                                   HasPartialOrderNftScript (..),
-                                                   HasPartialOrderScript (..))
+-- import           GeniusYield.Scripts              (HasPartialOrderConfigAddr (..),
+--                                                    HasPartialOrderNftScript (..),
+--                                                    HasPartialOrderScript (..))
 import           GeniusYield.Types
 import qualified Maestro.Types.V1                 as Maestro
 import           Maestro.Types.V1                 (Resolution (..))
-import           PlutusLedgerApi.V1.Scripts       (ScriptHash)
-import           PlutusLedgerApi.V1.Value         (AssetClass)
-import           PlutusLedgerApi.V2               (Address)
-import           Ply                              (ScriptRole (..), TypedScript)
+-- import           PlutusLedgerApi.V1.Scripts       (ScriptHash)
+-- import           PlutusLedgerApi.V1.Value         (AssetClass)
+-- import           PlutusLedgerApi.V2               (Address)
+-- import           Ply                              (ScriptRole (..), TypedScript)
 import           Unsafe.Coerce                    (unsafeCoerce)
 import           System.IO                        (withFile, IOMode(ReadMode), hGetContents)
 
@@ -43,23 +42,6 @@ addrUser netId user = addressFromCredential netId
 assetClassFromMaestro :: (Maestro.TokenName, Maestro.PolicyId) → Either SomeDeserializeError GYAssetClass
 assetClassFromMaestro ("", "") = pure GYLovelace
 assetClassFromMaestro (tokenName, policyId) = first (DeserializeErrorAssetClass . Text.pack) $ parseAssetClassWithSep '#' (coerce policyId <> "#" <> coerce tokenName)
-
--- | Type that encapsulates the scripts needed for the dex api.
-data DEXInfo = DEXInfo
-  { dexPartialOrderValidator  :: !(TypedScript 'ValidatorRole '[Address, AssetClass]),
-    dexNftPolicy              :: !(TypedScript 'MintingPolicyRole '[ScriptHash, Address, AssetClass]),
-    dexPartialOrderConfigAddr :: !GYAddress,
-    dexPORefs                 :: !PORefs
-  }
-
-instance HasPartialOrderScript DEXInfo where
-  getPartialOrderValidator = dexPartialOrderValidator
-
-instance HasPartialOrderNftScript DEXInfo where
-  getPartialOrderNftPolicy = dexNftPolicy
-
-instance HasPartialOrderConfigAddr DEXInfo where
-  getPartialOrderConfigAddr = dexPartialOrderConfigAddr
 
 
 -------------------------------------------------------------------------------

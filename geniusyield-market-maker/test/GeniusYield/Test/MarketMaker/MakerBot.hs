@@ -3,10 +3,10 @@ module GeniusYield.Test.MarketMaker.MakerBot where
 import           Control.Concurrent.MVar
 import           Control.Monad.State                (StateT (..), get, lift)
 import           Data.Maybe                         (fromJust)
+import           GeniusYield.Api.Dex.Constants      (DEXInfo (..))
 import           GeniusYield.MarketMaker.MakerBot   (MakerBot(..), MBFret(..), mbStateMachine)
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
-import           GeniusYield.MarketMaker.Utils      (DEXInfo)
 import           GeniusYield.Test.MarketMaker.Utils
 import           GeniusYield.Types
 

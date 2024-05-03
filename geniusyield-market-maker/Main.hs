@@ -1,14 +1,19 @@
 module Main (main) where
 
 import           Control.Exception                         (throwIO)
+import           GeniusYield.Api.Dex.Constants             (dexInfoDefaultMainnet,
+                                                            dexInfoDefaultPreprod)
 import           GeniusYield.GYConfig
+import           GeniusYield.MarketMaker.Constants         (logNS)
 import           GeniusYield.MarketMaker.MakerBot
 import           GeniusYield.MarketMaker.MakerBotConfig
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
 import           GeniusYield.MarketMaker.Utils             (addrUser)
 import           GeniusYield.OrderBot.DataSource.Providers (connectDB)
-import           GeniusYield.Types                         (addressToText)
+import           GeniusYield.Types                         (GYNetworkId (..),
+                                                            addressToText)
+import           GeniusYield.Types.Providers               (gyLogInfo)
 import           System.Environment
 
 -----------------------------------------------------------------------
@@ -37,13 +42,17 @@ main = do
   coreCfg <- coreConfigIO frameworkCfgPath
   mbc     <- readMBotConfig mBotConfigFile
   mb      <- buildMakerBot mbc
-  di      <- getDexInfo mbc
-
-  putStrLn $ "Genius Yield Market Maker: "
-    ++ show (addressToText $ addrUser (cfgNetworkId coreCfg) $ mbUser mb)
+  di      <-
+    case cfgNetworkId coreCfg of
+      GYTestnetPreprod -> pure dexInfoDefaultPreprod
+      GYMainnet -> pure dexInfoDefaultMainnet
+      _ -> throwIO $ userError "Only Preprod and Mainnet are supported."
 
   let netId = cfgNetworkId coreCfg
-  withCfgProviders coreCfg "" $ \providers ->
+  withCfgProviders coreCfg "" $ \providers -> do
+    gyLogInfo providers logNS $
+         "Genius Yield Market Maker: "
+      ++ show (addressToText $ addrUser (cfgNetworkId coreCfg) $ mbUser mb)
     case action of
       "Run"    -> do
         c  <- connectDB netId providers

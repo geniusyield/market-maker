@@ -8,8 +8,9 @@ import           Control.Monad.Reader               (runReaderT)
 import           Control.Monad.State                (StateT (..), get, put, lift)
 import           Data.List.Split                    (chunksOf)
 import qualified Data.Map.Strict                    as M
+import           GeniusYield.Api.Dex.Constants      (DEXInfo (..))
 import           GeniusYield.Api.Dex.PartialOrder   (PartialOrderInfo (poiOwnerKey),
-                                                     cancelMultiplePartialOrders,
+                                                     cancelMultiplePartialOrders',
                                                      partialOrders,
                                                      placePartialOrder)
 import           GeniusYield.Imports                (printf, (&))
@@ -17,8 +18,7 @@ import           GeniusYield.MarketMaker.Constants  (awaitTxParams, logNS)
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
 import           GeniusYield.MarketMaker.User
-import           GeniusYield.MarketMaker.Utils      (DEXInfo (dexPORefs),
-                                                     addrUser, pkhUser)
+import           GeniusYield.MarketMaker.Utils      (addrUser, pkhUser)
 import           GeniusYield.Providers.Common       (SubmitTxException)
 import           GeniusYield.Transaction            (BuildTxException)
 import           GeniusYield.TxBuilder
@@ -64,7 +64,7 @@ cancelAllOrders' MakerBot {mbUser} netId providers di = do
                 userAddr = addrUser netId mbUser
             txBody ← 
               runGYTxMonadNode netId providers [userAddr] userAddr (uColl mbUser)
-                $ runReaderT (cancelMultiplePartialOrders (dexPORefs di) batch) di
+                $ runReaderT (cancelMultiplePartialOrders' (dexPORefs di) batch) di
             let signedTx =
                   signGYTxBody' txBody [uSKeyToSomeSigningKey mbUser]
             tid ← gySubmitTx providers signedTx
@@ -85,7 +85,7 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
 
   forM_ (chunksOf 6 cancelActions) $ \cancelChunk → do
     logInfo $ "Building for cancel action(s): " <> show cancelChunk
-    txBody ← runGYTxMonadNode netId providers [userAddr] userAddr uColl $ flip runReaderT di $ cancelMultiplePartialOrders (dexPORefs di) (map coaPoi cancelChunk)
+    txBody ← runGYTxMonadNode netId providers [userAddr] userAddr uColl $ flip runReaderT di $ cancelMultiplePartialOrders' (dexPORefs di) (map coaPoi cancelChunk)
     buildCommon txBody
 
   forM_ placeActions $ \pa@PlaceOrderAction {..} → do

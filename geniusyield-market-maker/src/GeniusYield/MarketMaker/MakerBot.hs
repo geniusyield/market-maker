@@ -130,6 +130,10 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
     gyAwaitTxConfirmed providers awaitTxParams tid
     logInfo $ printf "Tx successfully seen on chain with %d confirmation(s)" numConfirms
 
+
+-----------------------------------------------------------------------
+-------------------------- STATE MACHINE ------------------------------
+
 mbStateMachine ∷ Strategy
                → MakerBot
                → GYNetworkId
@@ -190,8 +194,8 @@ mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                        lift $ gyLogWarning providers logNS $ "All Prices Providers unavailable!"
                        put MBSpooked2 { mbs2Relax = 0 }
 
-                     PriceSourceFail _ → do
-                       lift $ gyLogInfo providers logNS $ "One prices provider has failed"
+                     psf@PriceSourceFail {} → do
+                       lift $ logPricesProviderFail providers psf
 
                      _                 → do
                        lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."
@@ -219,8 +223,8 @@ mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                lift $ gyLogWarning providers logNS $ "All Prices Providers unavailable"
                put MBSpooked2 { mbs2Relax = 0 }
 
-             PriceSourceFail _ → do
-               lift $ gyLogInfo providers logNS $ "One prices provider has failed"
+             psf@PriceSourceFail {} → do
+               lift $ logPricesProviderFail providers psf
 
              _                 → do
                lift $ gyLogInfo providers logNS $ "Apparent recovery of Prices Providers; waiting for observation period to elapse."

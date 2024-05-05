@@ -81,7 +81,7 @@ msgCancelOrderBatch, msgNoMoreOrdersToCancel, msgApparentRecovery, msgResumingSt
 msgFinishedStrategy = "FINISHED STRATEGY"
 msgTxOnChain = "Tx successfully seen on chain"
 msgDoneForTheBlock = "Done for the block!"
-msgOnePProviderFailed = "One prices provider failed"
+msgOnePProviderFailed = "Some prices provider(s) failed"
 msgOutrageousMismatch = "Closed all orders due to: outrageous price mismatch among Prices Providers"
 msgOutrageousPersists = "Outrageous price mismatch persists"
 msgCancelOrderBatch = "Submitted a cancel order batch"

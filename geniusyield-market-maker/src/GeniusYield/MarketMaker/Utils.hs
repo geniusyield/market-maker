@@ -5,22 +5,16 @@ import           Control.Exception                (Exception(displayException), 
                                                    evaluate, throwIO) 
 import           Data.Aeson
 import           Data.Aeson.Types                 (typeMismatch)
+import           Data.List.NonEmpty               (NonEmpty(..))
+import qualified Data.List.NonEmpty               as NE (toList)
 import qualified Data.Map                         as Map
 import qualified Data.Text                        as Text
--- import           GeniusYield.Api.Dex.PartialOrder (PORefs)
 import           GeniusYield.Imports              (coerce, first, (&))
 import           GeniusYield.MarketMaker.User     (Secret (getSecret), User (..))
 import           GeniusYield.Providers.Common     (SomeDeserializeError (DeserializeErrorAssetClass))
--- import           GeniusYield.Scripts              (HasPartialOrderConfigAddr (..),
---                                                    HasPartialOrderNftScript (..),
---                                                    HasPartialOrderScript (..))
 import           GeniusYield.Types
 import qualified Maestro.Types.V1                 as Maestro
 import           Maestro.Types.V1                 (Resolution (..))
--- import           PlutusLedgerApi.V1.Scripts       (ScriptHash)
--- import           PlutusLedgerApi.V1.Value         (AssetClass)
--- import           PlutusLedgerApi.V2               (Address)
--- import           Ply                              (ScriptRole (..), TypedScript)
 import           Unsafe.Coerce                    (unsafeCoerce)
 import           System.IO                        (withFile, IOMode(ReadMode), hGetContents)
 
@@ -78,26 +72,24 @@ fromCommonResolution = maybe (throwIO $ userError "Undefined common price resolu
 -- Mean, Weighted Mean, and Relative Standard Deviation
 -------------------------------------------------------------------------------
 
-mean :: Fractional a => [a] -> a
-mean []     = error "mean of empty sample is undefined"
+mean :: Fractional a => NonEmpty a -> a
 mean sample = let n = fromIntegral . length $ sample
-              in  sum sample / n
+              in  sum (NE.toList sample) / n
 
-weightedMean :: Fractional a => [(a,a)] -> a
-weightedMean []  = error "weighted mean of empty sample is undefined"
-weightedMean wps = numerator / denominator
+weightedMean :: Fractional a => NonEmpty (a,a) -> a
+weightedMean wxs = numerator / denominator
   where
-    numerator   = sum $ map (\(x, y) -> x * y) wps
-    denominator = sum $ map fst wps
+    sum'        = sum . NE.toList
+    numerator   = sum' $ (\(w, x) -> w * x) <$> wxs
+    denominator = sum' $ fst <$> wxs
 
-relStdDev :: [Double] -> Double
+relStdDev :: NonEmpty Double -> Double
 relStdDev sample = case sample of
-  []       -> error "std dev of empty sample is undefined"
-  [_]      -> 0
-  [x1, x2] -> abs (x1 - x2) / (x1 + x2)
-  xs       -> relStdDev' xs
+  _  :| []   -> 0
+  x1 :| [x2] -> abs (x1 - x2) / (x1 + x2)
+  xs         -> relStdDev' xs
 
-relStdDev' :: [Double] -> Double
+relStdDev' :: NonEmpty Double -> Double
 relStdDev' sample = let avg = mean sample
                         sqs = (\x -> (x - avg) ** 2) <$> sample
                     in  (sqrt . mean $ sqs) / avg

@@ -393,8 +393,8 @@ priceEstimate pp mmtp = do
   case weightedPrices of
     []  → return PriceUnavailable
     wps → do
-      let p    = Price $ weightedMean wps
-          rsd  = relStdDev $ fromRational . snd <$> wps
+      let p    = Price . weightedMean . NE.fromList $ wps
+          rsd  = relStdDev . NE.fromList $ fromRational . snd <$> wps
           cCfg = ppaCommonCfg . pricesAggregatorPP $ pp
           ths1 = pccPriceDiffThreshold1 cCfg
           ths2 = pccPriceDiffThreshold2 cCfg

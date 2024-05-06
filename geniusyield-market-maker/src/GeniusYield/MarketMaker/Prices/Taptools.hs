@@ -30,12 +30,6 @@ instance FromJSON TtResolution where
         Just ttres -> pure ttres
     parseJSON invalid    = typeMismatch "TtResolution" invalid
 
--- instance Show TtResolution where
---   show = let kvm = Map.fromList [ (TtRes3m, "3m"), (TtRes5m, "5m"), (TtRes15m, "15m"), (TtRes30m, "30m")
---                                 , (TtRes1h, "1h"), (TtRes2h, "2h"), (TtRes4h, "4h"), (TtRes12h, "12h")
---                                 , (TtRes1d, "1d"), (TtRes3d, "3d"), (TtRes1w, "1w"), (TtRes1mo, "1M") ]
---          in  fromJust . flip Map.lookup kvm
-
 instance ToHttpApiData TtResolution where
   toQueryParam ttres = case ttres of
     TtRes3m  -> "3m"

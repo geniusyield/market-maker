@@ -158,14 +158,14 @@ mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
 
         UACSpooked1   → do
           put MBSpooked1 { mbs1Relax = 0, mbs1Worse = 0 }
-          lift $ gyLogInfo providers logNS "Closed all orders due to price mismatch among Prices Providers"
+          lift $ gyLogInfo providers logNS "Closing all orders due to price mismatch among Prices Providers"
 
           lift $ cancelAllOrders' mb netId providers di
           lift $ threadDelay respiteDelay
 
         UACSpooked2 e → do
           put MBSpooked2 { mbs2Relax = 0 }
-          lift $ gyLogWarning providers logNS $ "Closed all orders due to: " ++ e
+          lift $ gyLogWarning providers logNS $ "Closing all orders due to: " ++ e
 
           lift $ cancelAllOrders' mb netId providers di
           lift $ threadDelay respiteDelay

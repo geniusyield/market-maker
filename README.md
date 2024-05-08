@@ -121,7 +121,7 @@ The Market Maker Bot configuration had been explained in detail in the recent wo
 > [!NOTE]
 > See [`sample-preprod-maker-bot-config-gens.yaml`](./sample-preprod-maker-bot-config-gens.yaml) and [`sample-mainnet-maker-bot-config-gens.yaml`](./sample-mainnet-maker-bot-config-gens.yaml) for sample Preprod and Mainnet market maker bot configuration respectively. Note that both `json` and `yaml` formats are supported.
 
-https://github.com/geniusyield/market-maker/blob/main/sample-preprod-maker-bot-config-gens.yaml#L1-L90
+https://github.com/geniusyield/market-maker/blob/1c71faba6ff54c62cc8100eecbae69c537f058c4/sample-preprod-maker-bot-config-gens.yaml#L1-L90
 
 * `mbc_user` describes bot's wallet.
   * `ur_stake_address` (optional) is the bech32 stake address (`stake_test1...` for testnet and `stake1...` for mainnet). If specified, bot would place orders at the mangled address so that ADA in those orders (both as an offer or as received payment) would be staked. Note that if an order undergoes partial fill, received payment is in the generated order UTxO and is received by the author of order only when order is completely filled or is cancelled.

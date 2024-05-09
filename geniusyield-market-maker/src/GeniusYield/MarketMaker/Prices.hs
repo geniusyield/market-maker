@@ -316,7 +316,7 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $
           | mmtpCommodity mmtp == mmtLovelace → pure . mmtpCurrency $ mmtp
           | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
 
-    manager' ← taptoolsManager ttcApiKey
+    manager' ← taptoolsManager
     let env = mkClientEnv manager' taptoolsBaseUrl
 
     resolution ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
@@ -330,7 +330,7 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $
             tn'       = withoutQuotes . show . tokenNameToHex $ tn
             unit      = cs' ++ tn'
         
-        ohlcvInfo ← priceFromTaptools (Just unit) (Just resolution) (Just 1) env
+        ohlcvInfo ← priceFromTaptools ttcApiKey unit resolution 1 env
 
         case ohlcvInfo of
           Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"
@@ -357,11 +357,11 @@ buildGetQuota _ (MockPPC MockConfig {..}) = GetQuota $ \_ → do
 
   let adjustedPrice = price + offset
 
-  mock1Available ← case mokcAvailablePath of
+  mockAvailable ← case mokcAvailablePath of
     Nothing   → pure True
     Just path → readBool path `catch` handleBoolReadError
 
-  if mock1Available
+  if mockAvailable
     then return . Right . Price . toRational $ adjustedPrice
     else return . Left $ SourceUnavailable "Mock prices provider exception." "Mock Prices Provider"
 

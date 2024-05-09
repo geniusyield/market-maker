@@ -43,16 +43,17 @@ assetClassFromMaestro (tokenName, policyId) = first (DeserializeErrorAssetClass 
 -------------------------------------------------------------------------------
 
 -- | Generic time resolution for OHLC Candles
-data CommonResolution = CRes5m | CRes15m | CRes30m | CRes1h | CRes4h
-                      | CRes1d | CRes1w  | CRes1mo
-                      deriving stock (Eq, Ord, Show)
+data CommonResolution = CRes5m | CRes15m | CRes30m | CRes1h | CRes4h | CRes1d | CRes1w  | CRes1mo
+  deriving stock (Eq, Ord, Show)
+
+commonResolutionFromJSON :: Map.Map Text.Text CommonResolution
+commonResolutionFromJSON = Map.fromList
+  [ ("5m", CRes5m), ("15m", CRes15m), ("30m", CRes30m), ("1h", CRes1h),
+    ("4h", CRes4h), ("1d", CRes1d), ("1w", CRes1w), ("1mo", CRes1mo) ]
 
 instance FromJSON CommonResolution where
-    parseJSON (String v) =
-      let kvm = Map.fromList [ ("5m", CRes5m), ("15m", CRes15m), ("30m", CRes30m), ("1h", CRes1h),
-                               ("4h", CRes4h), ("1d", CRes1d), ("1w", CRes1w), ("1mo", CRes1mo) ]
-      in case Map.lookup v kvm of
-        Nothing   -> typeMismatch "CommonResolution" ""
+    parseJSON (String v) = case Map.lookup v commonResolutionFromJSON of
+        Nothing   -> fail $ "Value " ++ show v ++ " does not correspond to a valid 'pcc_common_resolution'."
         Just cres -> pure cres
     parseJSON invalid    = typeMismatch "CommonResolution" invalid
 

@@ -4,13 +4,12 @@ import           Data.Aeson
 import           Data.Aeson.Types                 (typeMismatch)
 import qualified Data.Map                         as Map
 import           Data.Proxy
-import qualified Data.Text                        as Text
-import           Data.Text.Encoding               (encodeUtf8)
+import           Data.Text                        (Text)
 import           Data.Time.Clock.POSIX            (POSIXTime)
 import           GeniusYield.GYConfig             (Confidential (..))
 import           GeniusYield.Imports              (Generic)
 import           GeniusYield.MarketMaker.Utils
-import           Network.HTTP.Client              (newManager, Manager, ManagerSettings(..), Request(..))
+import           Network.HTTP.Client              (newManager, Manager)
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import           Servant.API
 import           Servant.Client
@@ -21,12 +20,14 @@ data TtResolution = TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h 
                   | TtRes1d | TtRes3d | TtRes1w  | TtRes1mo
                   deriving stock (Eq, Ord, Show, Generic)
 
+taptoolsResolutionFromJSON :: Map.Map Text TtResolution
+taptoolsResolutionFromJSON = Map.fromList
+  [ ("3m", TtRes3m), ("5m", TtRes5m), ("15m", TtRes15m), ("30m", TtRes30m), ("1h", TtRes1h), ("2h", TtRes2h),
+    ("4h", TtRes4h), ("12h", TtRes12h), ("1d", TtRes1d), ("3d", TtRes3d), ("1w", TtRes1w), ("1mo", TtRes1mo) ]
+
 instance FromJSON TtResolution where
-    parseJSON (String v) =
-      let kvm = Map.fromList [ ("3m", TtRes3m), ("5m", TtRes5m), ("15m", TtRes15m), ("30m", TtRes30m), ("1h", TtRes1h), ("2h", TtRes2h),
-                               ("4h", TtRes4h), ("12h", TtRes12h), ("1d", TtRes1d), ("3d", TtRes3d), ("1w", TtRes1w), ("1mo", TtRes1mo) ]
-      in case Map.lookup v kvm of
-        Nothing    -> typeMismatch "TtResolution" ""
+    parseJSON (String v) = case Map.lookup v taptoolsResolutionFromJSON of
+        Nothing    -> fail $ "Value " ++ show v ++ " does not correspond to a valid 'ttc_resolution_override'."
         Just ttres -> pure ttres
     parseJSON invalid    = typeMismatch "TtResolution" invalid
 
@@ -52,8 +53,9 @@ instance PriceResolution TtResolution where
 type TtUnit = String
 
 type TtAPI =
-  "token" :> "ohlcv" :> QueryParam "unit" TtUnit
-                     :> QueryParam "interval" TtResolution
+  "token" :> "ohlcv" :> Header "x-api-key" Text
+                     :> QueryParam "unit" TtUnit
+                     :> QueryParam' '[Required, Strict] "interval" TtResolution
                      :> QueryParam "numIntervals" Int
                      :> Get '[JSON] [TtOHLCV]
 
@@ -78,22 +80,16 @@ instance FromJSON TtOHLCV where
 api :: Proxy TtAPI
 api = Proxy
 
-getTtOHLCV :: Maybe TtUnit -> Maybe TtResolution -> Maybe Int -> ClientM [TtOHLCV]
+getTtOHLCV :: Maybe Text -> Maybe TtUnit -> TtResolution -> Maybe Int -> ClientM [TtOHLCV]
 getTtOHLCV = client api
 
-taptoolsManager :: Confidential Text.Text -> IO Manager
-taptoolsManager apiKey = newManager $ tlsManagerSettings { managerModifyRequest = withHeaders }
-  where
-    Confidential apiKey' = apiKey
-
-    withHeaders :: Request -> IO Request
-    withHeaders req = do
-      return $ req { requestHeaders = ("x-api-key", encodeUtf8 apiKey') :
-                                      filter (("x-api-key" /=) . fst) (requestHeaders req)
-                   }
+taptoolsManager :: IO Manager
+taptoolsManager = newManager tlsManagerSettings
 
 taptoolsBaseUrl :: BaseUrl
 taptoolsBaseUrl = BaseUrl Http "openapi.taptools.io" 80 "api/v1"
 
-priceFromTaptools :: Maybe TtUnit -> Maybe TtResolution -> Maybe Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
-priceFromTaptools mbUnit mbInterval mbNumIntervals = runClientM (getTtOHLCV mbUnit mbInterval mbNumIntervals)
+priceFromTaptools :: Confidential Text -> TtUnit -> TtResolution -> Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
+priceFromTaptools apiKey unit resolution numIntervals = runClientM (getTtOHLCV (Just apiKey') (Just unit) resolution  (Just numIntervals))
+  where
+    Confidential apiKey' = apiKey

@@ -147,15 +147,6 @@ library geniusyield-market-maker-lib
     , geniusyield-orderbot-framework:common
     , ghc-typelits-knownnat
     , maestro-sdk
-    , MonadRandom
-    , plutus-core
-    , plutus-ledger-api
-    , ply-core
-    , random
-    , random-fu
-    , vector
-  ghc-options:      -Wall
-  default-language: Haskell2010
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
 
@@ -176,16 +167,7 @@ executable geniusyield-market-maker-exe
     , geniusyield-orderbot-framework:common
     , ghc-typelits-knownnat
     , maestro-sdk
-    , MonadRandom
-    , plutus-core
-    , plutus-ledger-api
-    , ply-core
-    , random
-    , random-fu
-    , vector
   hs-source-dirs:   .
-  ghc-options:      -Wall
-  default-language: Haskell2010
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
 
@@ -209,11 +191,7 @@ test-suite pproviders-status-sequence
                   , geniusyield-orderbot-framework:common
                   , ghc-typelits-knownnat
                   , maestro-sdk
-                  , plutus-ledger-api
-                  , ply-core
                   , tasty
                   , tasty-hunit
-  ghc-options:      -Wall
-  default-language: Haskell2010
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)  

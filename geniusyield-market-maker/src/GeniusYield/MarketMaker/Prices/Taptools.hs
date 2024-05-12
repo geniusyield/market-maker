@@ -1,14 +1,11 @@
 module GeniusYield.MarketMaker.Prices.Taptools where
 
 import           Data.Aeson
-import           Data.Aeson.Types                 (typeMismatch)
-import qualified Data.Map                         as Map
+import           Deriving.Aeson
 import           Data.Proxy
 import           Data.Text                        (Text)
 import           Data.Time.Clock.POSIX            (POSIXTime)
 import           GeniusYield.GYConfig             (Confidential (..))
-import           GeniusYield.Imports              (Generic)
-import           GeniusYield.MarketMaker.Utils
 import           Network.HTTP.Client              (newManager, Manager)
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import           Servant.API
@@ -16,20 +13,11 @@ import           Servant.Client
 
 
 -- | Taptools time resolution for OHLC Candles
-data TtResolution = TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h | TtRes4h | TtRes12h
-                  | TtRes1d | TtRes3d | TtRes1w  | TtRes1mo
-                  deriving stock (Eq, Ord, Show, Generic)
-
-taptoolsResolutionFromJSON :: Map.Map Text TtResolution
-taptoolsResolutionFromJSON = Map.fromList
-  [ ("3m", TtRes3m), ("5m", TtRes5m), ("15m", TtRes15m), ("30m", TtRes30m), ("1h", TtRes1h), ("2h", TtRes2h),
-    ("4h", TtRes4h), ("12h", TtRes12h), ("1d", TtRes1d), ("3d", TtRes3d), ("1w", TtRes1w), ("1mo", TtRes1mo) ]
-
-instance FromJSON TtResolution where
-    parseJSON (String v) = case Map.lookup v taptoolsResolutionFromJSON of
-        Nothing    -> fail $ "Value " ++ show v ++ " does not correspond to a valid 'ttc_resolution_override'."
-        Just ttres -> pure ttres
-    parseJSON invalid    = typeMismatch "TtResolution" invalid
+data TtResolution =
+    TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h | TtRes4h | TtRes12h
+  | TtRes1d | TtRes3d | TtRes1w  | TtRes1M
+  deriving stock (Eq, Ord, Show, Generic)
+  deriving (FromJSON, ToJSON) via CustomJSON '[ConstructorTagModifier '[StripPrefix "TtRes"]] TtResolution
 
 instance ToHttpApiData TtResolution where
   toQueryParam ttres = case ttres of
@@ -44,11 +32,7 @@ instance ToHttpApiData TtResolution where
     TtRes1d  -> "1d"
     TtRes3d  -> "3d"
     TtRes1w  -> "1w"
-    TtRes1mo -> "1M"
-
-instance PriceResolution TtResolution where
-  resolutionInherited = Map.fromList [ (CRes5m, TtRes5m), (CRes15m, TtRes15m), (CRes30m, TtRes30m), (CRes1h, TtRes1h)
-                                     , (CRes4h, TtRes4h), (CRes1d, TtRes1d), (CRes1w, TtRes1w), (CRes1mo, TtRes1mo) ]
+    TtRes1M  -> "1M"
 
 type TtUnit = String
 

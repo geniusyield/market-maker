@@ -3,8 +3,8 @@
 module GeniusYield.MarketMaker.Prices where
 
 import           Control.Applicative                       ((<|>))
-import           Control.Arrow                             (Arrow (first),
-                                                            (&&&))
+import           Control.Arrow                             (Arrow (first), (&&&))
+import           Control.Concurrent.MVar
 import           Control.Exception                         (Exception, throwIO, try, catch, displayException)
 import           Control.Monad                             ((<=<))
 import           Data.Aeson                                (parseJSON)
@@ -15,6 +15,7 @@ import           Data.Fixed                                (Fixed (..),
                                                             showFixed)
 import           Data.Function                             ((&))
 import           Data.List                                 (find)
+import           Data.List.NonEmpty                        (NonEmpty(..))
 import qualified Data.List.NonEmpty                        as NE
 import qualified Data.Map.Strict                           as M
 import           Data.Maybe                                (fromJust, catMaybes)
@@ -74,47 +75,43 @@ data PriceConfigV1 = PriceConfigV1
 
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     ∷ !PriceCommonCfg,
-    pcPricesProviderCfgs ∷ !(NE.NonEmpty PricesProviderCfg)
+    pcPricesProviderCfgs ∷ !(NonEmpty PricesProviderCfg)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
 
 data PriceCommonCfg = PriceCommonCfg
-  { pccCommonResolution       ∷ !CommonResolution,
-    pccNetworkId              ∷ !GYNetworkId,
-    pccPriceDiffThreshold1    ∷ !Double,  -- ^ Triggers "mildly spooked"
-    pccPriceDiffThreshold2    ∷ !Double,  -- ^ Triggers "very spooked"; Threshold2 >= Threshold1
-    pccRespiteDelayFactor     ∷ !Double,  -- ^ Thread delay multiplier determining the respite delay when  "spooked"
-    pccAfterExitRelaxAim1     ∷ !Int,     -- ^ Relaxation time (in cycles) to return to normal after "mildly spooked"
-    pccAfterExitWorseMax1     ∷ !Int,     -- ^ Waiting time (in cycles) to transition from "mildly" to "very spooked"
-    pccAfterExitRelaxAim2     ∷ !Int,     -- ^ Relaxation time (in cycles) to return to normal after "very spooked"
-    pccPricesProvidersWeights ∷ ![Int]    -- ^ Corresponding to each @PricesProviderCfg@
+  { pccNetworkId              ∷ !GYNetworkId,
+    pccPriceDiffThreshold1    ∷ !Double,          -- ^ Triggers "mildly spooked"
+    pccPriceDiffThreshold2    ∷ !Double,          -- ^ Triggers "very spooked"; Threshold2 >= Threshold1
+    pccRespiteDelayFactor     ∷ !(Maybe Double),  -- ^ Thread delay multiplier determining the respite delay when  "spooked"
+    pccAfterExitRelaxAim1     ∷ !Int,             -- ^ Relaxation time (in cycles) to return to normal after "mildly spooked"
+    pccAfterExitWorseMax1     ∷ !Int,             -- ^ Waiting time (in cycles) to transition from "mildly" to "very spooked"
+    pccAfterExitRelaxAim2     ∷ !Int,             -- ^ Relaxation time (in cycles) to return to normal after "very spooked"
+    pccPricesProvidersWeights ∷ !(NonEmpty Int)   -- ^ Corresponding to each @PricesProviderCfg@
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
 
 data MaestroConfig = MaestroConfig
-  { mcApiKey             ∷ !(Confidential Text),
-    mcResolutionOverride ∷ !(Maybe Maestro.Resolution),
-    mcDex                ∷ !Dex,
-    mcPairOverride       ∷ !(Maybe MaestroPairOverride)
+  { mcApiKey       ∷ !(Confidential Text),
+    mcResolution   ∷ !Maestro.Resolution,
+    mcDex          ∷ !Dex,
+    mcPairOverride ∷ !(Maybe MaestroPairOverride)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroConfig
 
 data TaptoolsConfig = TaptoolsConfig
   { ttcApiKey             ∷ !(Confidential Text),
-    ttcResolutionOverride ∷ !(Maybe TtResolution),
+    ttcResolution ∷ !TtResolution,
     ttcPairOverride       ∷ !(Maybe TaptoolsPairOverride)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsConfig
 
 data MockConfig = MockConfig  -- For testing
-  { mokcPrice          ∷ !Double,
-    mokcOffsetPath     ∷ !(Maybe FilePath),
-    mokcAvailablePath  ∷ !(Maybe FilePath)
-  }
+  { mokcName ∷ !String }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MockConfig
 
@@ -168,9 +165,19 @@ data TaptoolsPairOverride = TaptoolsPairOverride
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsPairOverride
 
+data MockConfigExtended = MockConfigExtended
+  { mokceName  ∷ !String,
+    mokcePrice ∷ !(MVar (Maybe Double))
+  }
+
+data PricesProviderBuilt =
+    MaestroPPB MaestroConfig
+  | TaptoolsPPB TaptoolsConfig
+  | MockPPB MockConfigExtended
+
 data PricesProvidersAggregator = PPA
   { ppaCommonCfg     ∷ !PriceCommonCfg,
-    ppaPricesCluster ∷ ![PricesProviderCfg]
+    ppaPricesCluster ∷ !(NonEmpty PricesProviderBuilt)
   }
 
 data PricesProviders = PP
@@ -185,33 +192,33 @@ buildPP
   → IO PricesProviders
 buildPP c dex pc =
   PP
-   <$> ppPricesAggregator
-   <*> return (c, dex)
+   <$> ppAggregator
+   <*> pure (c, dex)
  where
-  ppPricesAggregator ∷ IO PricesProvidersAggregator
-  ppPricesAggregator = case pc of
+  ppAggregator ∷ IO PricesProvidersAggregator
+  ppAggregator = case pc of
     PCVersion1 (PriceConfigV1 {..}) → do
       let pccNetworkId   = pcNetworkId
           mcApiKey       = pcApiKey
           mcDex          = pcDex
           mcPairOverride = pcOverride
+
       return PPA
         { ppaCommonCfg = PriceCommonCfg
-          { pccCommonResolution       = CRes5m  -- placeholder, unused
-          , pccNetworkId              = pccNetworkId
+          { pccNetworkId              = pccNetworkId
           , pccPriceDiffThreshold1    = 1
           , pccPriceDiffThreshold2    = 1
-          , pccRespiteDelayFactor     = 0.5     -- TODO: sensible value?
-          , pccAfterExitRelaxAim1     = 0       -- placeholder, unused
-          , pccAfterExitWorseMax1     = 0       -- placeholder, unused
-          , pccAfterExitRelaxAim2     = 10      -- TODO: sensible value?
-          , pccPricesProvidersWeights = [1]
+          , pccRespiteDelayFactor     = Nothing
+          , pccAfterExitRelaxAim1     = 0               -- placeholder, unused
+          , pccAfterExitWorseMax1     = 0               -- placeholder, unused
+          , pccAfterExitRelaxAim2     = 1
+          , pccPricesProvidersWeights = NE.singleton 1
           }
-        , ppaPricesCluster = [ MaestroPPC MaestroConfig
-            { mcApiKey             = mcApiKey
-            , mcResolutionOverride = Just pcResolution
-            , mcDex                = mcDex
-            , mcPairOverride       = mcPairOverride
+        , ppaPricesCluster = NE.fromList [ MaestroPPB MaestroConfig
+            { mcApiKey       = mcApiKey
+            , mcResolution   = pcResolution
+            , mcDex          = mcDex
+            , mcPairOverride = mcPairOverride
             } ]
         }
 
@@ -219,17 +226,25 @@ buildPP c dex pc =
       let ppaCommonCfg     = pcPriceCommonCfg
           thresHold1       = pccPriceDiffThreshold1 ppaCommonCfg
           thresHold2       = pccPriceDiffThreshold2 ppaCommonCfg
-          ppaPricesCluster = NE.toList pcPricesProviderCfgs
 
-      when (length (pccPricesProvidersWeights ppaCommonCfg) /= length ppaPricesCluster) $
+      when (length (pccPricesProvidersWeights ppaCommonCfg) /= length pcPricesProviderCfgs) $
         throwIO $ userError "Expected 'pccPricesProvidersWeights' to be of same length as 'pcPricesProviderCfgs'."
       when (thresHold2 < thresHold1) $
         throwIO $ userError "Expected 'pccPriceDiffThreshold2 >= pccPriceDiffThreshold1'."
 
-      return PPA
-        { ppaCommonCfg     = ppaCommonCfg,
-          ppaPricesCluster = ppaPricesCluster
-        }
+      PPA <$> (pure ppaCommonCfg) <*> mapM ppBuilder pcPricesProviderCfgs
+
+      where
+        ppBuilder ∷ PricesProviderCfg → IO PricesProviderBuilt
+        ppBuilder ppc = case ppc of
+          MaestroPPC mc  → pure $ MaestroPPB mc
+          TaptoolsPPC tc → pure $ TaptoolsPPB tc
+          MockPPC mokc   → do
+            mokcePrice ← newMVar Nothing
+            return $ MockPPB MockConfigExtended
+              { mokceName  = mokcName mokc
+              , mokcePrice = mokcePrice
+              }
   
 data PriceIndicator = PriceMismatch1 | PriceMismatch2 | PriceUnavailable | PriceSourceFail [String] [String] Price | PriceAverage Price
   deriving stock Show
@@ -240,11 +255,10 @@ data SourceError = SourceUnavailable String String
 
 newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceError Price) }
 
-buildGetQuota ∷ PriceCommonCfg → PricesProviderCfg → GetQuota
+buildGetQuota ∷ PriceCommonCfg → PricesProviderBuilt → GetQuota
 
-buildGetQuota PriceCommonCfg {..} (MaestroPPC MaestroConfig {..}) = GetQuota $ \mmtp → do
+buildGetQuota PriceCommonCfg {..} (MaestroPPB MaestroConfig {..}) = GetQuota $ \mmtp → do
   env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
-  res ← maybe (fromCommonResolution pccCommonResolution) pure mcResolutionOverride
 
   flip catch handleMaestroSourceFail $ do
     (pairName, commodityIsA) ← case mcPairOverride of
@@ -269,7 +283,8 @@ buildGetQuota PriceCommonCfg {..} (MaestroPPC MaestroConfig {..}) = GetQuota $ \
 
     let pair = TaggedText pairName
 
-    ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $ pricesFromDex env mcDex pair (Just res) Nothing Nothing Nothing (Just Descending)
+    ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $
+      pricesFromDex env mcDex pair (Just mcResolution) Nothing Nothing Nothing (Just Descending)
 
     let info = head ohlInfo
         curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
@@ -306,7 +321,7 @@ buildGetQuota PriceCommonCfg {..} (MaestroPPC MaestroConfig {..}) = GetQuota $ \
 
     functionLocationIdent = "getMaestroPrice"
 
-buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $ \mmtp → case pccNetworkId of
+buildGetQuota PriceCommonCfg {..} (TaptoolsPPB TaptoolsConfig {..}) = GetQuota $ \mmtp → case pccNetworkId of
   GYMainnet → do
     commodity ∷ MMToken ← 
       case ttcPairOverride of
@@ -319,8 +334,6 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $
     manager' ← taptoolsManager
     let env = mkClientEnv manager' taptoolsBaseUrl
 
-    resolution ← maybe (fromCommonResolution pccCommonResolution) pure ttcResolutionOverride
-
     case commodity of
       MMToken { mmtAc = GYLovelace }                              → do
         return . Right $ Price (1 % 1)
@@ -330,7 +343,7 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $
             tn'       = withoutQuotes . show . tokenNameToHex $ tn
             unit      = cs' ++ tn'
         
-        ohlcvInfo ← priceFromTaptools ttcApiKey unit resolution 1 env
+        ohlcvInfo ← priceFromTaptools ttcApiKey unit ttcResolution 1 env
 
         case ohlcvInfo of
           Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"
@@ -348,27 +361,17 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPC TaptoolsConfig {..}) = GetQuota $
 
   _         → throwIO $ userError "Only Mainnet is supported."
 
-buildGetQuota _ (MockPPC MockConfig {..}) = GetQuota $ \_ → do
-  let price = mokcPrice
+buildGetQuota _ (MockPPB MockConfigExtended {..}) = GetQuota $ \_ → do
+  mbPrice ← readMVar mokcePrice
   
-  offset ← case mokcOffsetPath of
-    Nothing   → pure 0
-    Just path → readOffset path `catch` handleOffsetReadError
-
-  let adjustedPrice = price + offset
-
-  mockAvailable ← case mokcAvailablePath of
-    Nothing   → pure True
-    Just path → readBool path `catch` handleBoolReadError
-
-  if mockAvailable
-    then return . Right . Price . toRational $ adjustedPrice
-    else return . Left $ SourceUnavailable "Mock prices provider exception." "Mock Prices Provider"
-
-buildGetQuotas ∷ PricesProviders → [GetQuota]
+  case mbPrice of
+    Nothing → return . Left $ SourceUnavailable "Mock prices provider exception." mokceName
+    Just p  → return . Right . Price . toRational $ p
+ 
+buildGetQuotas ∷ PricesProviders → NonEmpty GetQuota
 buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> ppaPricesCluster
 
-buildWeights ∷ PricesProviders → [Int]
+buildWeights ∷ PricesProviders → NonEmpty Int
 buildWeights PP {pricesAggregatorPP = PPA {..}} = pccPricesProvidersWeights ppaCommonCfg
 
 
@@ -378,8 +381,8 @@ buildWeights PP {pricesAggregatorPP = PPA {..}} = pccPricesProvidersWeights ppaC
 
 priceEstimate ∷ PricesProviders → MMTokenPair → IO PriceIndicator
 priceEstimate pp mmtp = do
-  let pproviders = buildGetQuotas pp
-      weights    = buildWeights pp
+  let pproviders = NE.toList $ buildGetQuotas pp
+      weights    = NE.toList $ buildWeights pp
 
   eps ← mapM (\prov → getQuota prov mmtp) pproviders
   

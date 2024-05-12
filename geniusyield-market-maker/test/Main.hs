@@ -2,12 +2,11 @@ module Main (main) where
 
 import           Control.Concurrent.MVar
 import           Control.Exception                         (throwIO)
-import           GeniusYield.Api.Dex.Constants             (dexInfoDefaultMainnet,
-                                                            dexInfoDefaultPreprod)
+import           GeniusYield.Api.Dex.Constants             (dexInfoDefaultPreprod)
 import           GeniusYield.GYConfig
 import           GeniusYield.MarketMaker.Constants         (logNS)
 import           GeniusYield.MarketMaker.MakerBotConfig
-import           GeniusYield.MarketMaker.MakerBot          (MakerBot(..), cancelAllOrders')
+import           GeniusYield.MarketMaker.MakerBot          (MakerBot(..))
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
 import           GeniusYield.MarketMaker.Utils             (addrUser)
@@ -28,7 +27,6 @@ runSequence :: IO Bool
 runSequence = do
   logRef  <- newMVar []
 
-  let action           = "Run"
   let frameworkCfgPath = "../secrets/my-atlas-config-maestro.json"
       mBotConfigFile   = Just "../secrets/my-preprod-maker-bot-config-gens-v2-test.yaml"
 
@@ -38,8 +36,7 @@ runSequence = do
   di      <-
     case cfgNetworkId coreCfg of
       GYTestnetPreprod -> pure dexInfoDefaultPreprod
-      GYMainnet -> pure dexInfoDefaultMainnet
-      _ -> throwIO $ userError "Only Preprod and Mainnet are supported."
+      _ -> throwIO $ userError "Test supported only on Preprod."
 
   let netId = cfgNetworkId coreCfg
   withCfgProviders coreCfg "" $ \providers' -> do
@@ -53,13 +50,9 @@ runSequence = do
          "Genius Yield Market Maker: "
       ++ show (addressToText $ addrUser (cfgNetworkId coreCfg) $ mbUser mb)
 
-    case action of
-      "Run"    -> do
-        c  <- connectDB netId providers
-        pp <- buildPP c di (mbcPriceConfig mbc)
-        executeStrategy (fixedSpreadVsMarketPriceStrategy (mbcStrategyConfig mbc)) mb netId providers pp di logRef
-      "Cancel" -> cancelAllOrders' mb netId providers di
-      _        -> throwIO . userError $ "Action '" ++ action ++ "' not supported. Check cli arguments."
+    c  <- connectDB netId providers
+    pp <- buildPP c di (mbcPriceConfig mbc)
+    executeStrategy (fixedSpreadVsMarketPriceStrategy (mbcStrategyConfig mbc)) mb netId providers pp di logRef
 
   finalLog <- readMVar logRef
   return $ examineLog finalLog

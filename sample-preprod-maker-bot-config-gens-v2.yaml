@@ -24,15 +24,11 @@ mbc_delay: 120000000
 mbc_price_config:
   # Prices providers' common configuration parameters.
   pc_price_common_cfg:
-    # Common resolution parameter for API call, for both prices providers. Available choices: 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo.
-    pcc_common_resolution: CRes15m  # example: 15 minutes
     pcc_network_id:  mainnet
     # Difference threshold triggering automatic cancelation of open orders, without warning.
     pcc_price_diff_threshold1: 0.3
     # Difference threshold triggering automatic cancelation of open orders, sending a warning.  Should not be smaller than Threshold1.
     pcc_price_diff_threshold2: 0.6
-    # Thread delay multiplier determining the respite delay after profilactic market exit.
-    pcc_respite_delay_factor: 0.2
     # Relaxation time (in cycles) to return to normal after piercing threshold1.
     pcc_after_exit_relax_aim1:  4
     # Waiting time (in cycles) to start warning after piercing threshold1.
@@ -49,8 +45,8 @@ mbc_price_config:
       contents:
         # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
         mc_api_key: <<MAESTRO_TOKEN>>
-        # Maestro resolution (overriding common resolution).  Options: 1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo.
-        # mc_resolution_override: 
+        # Maestro resolution
+        mc_resolution: 5m
         mc_dex: minswap
         # Alternative pair (for testing only).
         mc_pair_override:
@@ -60,8 +56,8 @@ mbc_price_config:
       contents:
         # Taptools API key.
         ttc_api_key: <<TAPTOOLS_TOKEN>>
-        # Taptools resolution (overriding common resolution). Options: 3m, 5m, 15m, 30m, 1h, 2h, 4h, 12h, 1d, 3d, 1w, 1mo
-        # ttc_resolution_override:
+        # Taptools resolution
+        ttc_resolution: 5m
         # Alternative asset with precision (for testing only).
         ttc_pair_override:
           ttpo_asset: dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53  # example: GENS

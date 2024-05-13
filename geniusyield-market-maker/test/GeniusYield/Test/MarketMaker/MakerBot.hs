@@ -14,7 +14,7 @@ import           GeniusYield.Types
 
 
 getMockMVars :: PricesProviders -> [MVar (Maybe Double)]
-getMockMVars pp = map mokcePrice mces
+getMockMVars pp = map mokppPrice mces
   where
     mces = catMaybes $ maybeMock <$> (NE.toList . ppaPricesCluster . pricesAggregatorPP $ pp)
     maybeMock :: PricesProviderBuilt -> Maybe MockConfigExtended

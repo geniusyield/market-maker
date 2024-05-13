@@ -47,7 +47,7 @@ import           GHC.TypeNats                              (SomeNat (SomeNat),
                                                             someNatVal)
 import           Maestro.Client.V1
 import           Maestro.Types.V1                          as Maestro
-import           Servant.Client                            (mkClientEnv)
+import           Servant.Client                            (ClientEnv, mkClientEnv)
 
 
 -- $setup
@@ -165,15 +165,28 @@ data TaptoolsPairOverride = TaptoolsPairOverride
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsPairOverride
 
-data MockConfigExtended = MockConfigExtended
-  { mokceName  ∷ !String,
-    mokcePrice ∷ !(MVar (Maybe Double))
+data MaestroPP = MaestroPP
+  { mppEnv          ∷ !(MaestroEnv 'V1),
+    mppResolution   ∷ !Maestro.Resolution,
+    mppDex          ∷ !Dex,
+    mppPairOverride ∷ !(Maybe MaestroPairOverride)
+  }
+
+data TaptoolsPP = TaptoolsPP
+  { ttppEnv          ∷ !ClientEnv,
+    ttppResolution   ∷ !TtResolution,
+    ttppPairOverride ∷ !(Maybe TaptoolsPairOverride)
+  }
+
+data MockPP = MockPP
+  { mokppName  ∷ !String,
+    mokppPrice ∷ !(MVar (Maybe Double))
   }
 
 data PricesProviderBuilt =
-    MaestroPPB MaestroConfig
-  | TaptoolsPPB TaptoolsConfig
-  | MockPPB MockConfigExtended
+    MaestroPPB MaestroPP
+  | TaptoolsPPB TaptoolsPP
+  | MockPPB MockPP
 
 data PricesProvidersAggregator = PPA
   { ppaCommonCfg     ∷ !PriceCommonCfg,
@@ -198,10 +211,11 @@ buildPP c dex pc =
   ppAggregator ∷ IO PricesProvidersAggregator
   ppAggregator = case pc of
     PCVersion1 (PriceConfigV1 {..}) → do
-      let pccNetworkId   = pcNetworkId
-          mcApiKey       = pcApiKey
-          mcDex          = pcDex
-          mcPairOverride = pcOverride
+      env ← networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
+      
+      let pccNetworkId    = pcNetworkId
+          mppDex          = pcDex
+          mppPairOverride = pcOverride
 
       return PPA
         { ppaCommonCfg = PriceCommonCfg
@@ -214,36 +228,49 @@ buildPP c dex pc =
           , pccAfterExitRelaxAim2     = 1
           , pccPricesProvidersWeights = NE.singleton 1
           }
-        , ppaPricesCluster = NE.fromList [ MaestroPPB MaestroConfig
-            { mcApiKey       = mcApiKey
-            , mcResolution   = pcResolution
-            , mcDex          = mcDex
-            , mcPairOverride = mcPairOverride
+        , ppaPricesCluster = NE.fromList [ MaestroPPB MaestroPP
+            { mppEnv          = env
+            , mppResolution   = pcResolution
+            , mppDex          = mppDex
+            , mppPairOverride = mppPairOverride
             } ]
         }
 
     PCVersion2 (PriceConfigV2 {..}) → do
-      let ppaCommonCfg     = pcPriceCommonCfg
-          thresHold1       = pccPriceDiffThreshold1 ppaCommonCfg
-          thresHold2       = pccPriceDiffThreshold2 ppaCommonCfg
+      let thresHold1   = pccPriceDiffThreshold1 pcPriceCommonCfg
+          thresHold2   = pccPriceDiffThreshold2 pcPriceCommonCfg
 
-      when (length (pccPricesProvidersWeights ppaCommonCfg) /= length pcPricesProviderCfgs) $
+      when (length (pccPricesProvidersWeights pcPriceCommonCfg) /= length pcPricesProviderCfgs) $
         throwIO $ userError "Expected 'pccPricesProvidersWeights' to be of same length as 'pcPricesProviderCfgs'."
       when (thresHold2 < thresHold1) $
         throwIO $ userError "Expected 'pccPriceDiffThreshold2 >= pccPriceDiffThreshold1'."
 
-      PPA <$> (pure ppaCommonCfg) <*> mapM ppBuilder pcPricesProviderCfgs
+      PPA <$> (pure pcPriceCommonCfg) <*> mapM ppBuilder pcPricesProviderCfgs
 
       where
         ppBuilder ∷ PricesProviderCfg → IO PricesProviderBuilt
         ppBuilder ppc = case ppc of
-          MaestroPPC mc  → pure $ MaestroPPB mc
-          TaptoolsPPC tc → pure $ TaptoolsPPB tc
+          MaestroPPC mc  → do
+            env ← networkIdToMaestroEnv (coerce $ mcApiKey mc) (pccNetworkId pcPriceCommonCfg)
+            return $ MaestroPPB MaestroPP
+              { mppEnv          = env
+              , mppResolution   = mcResolution mc
+              , mppDex          = mcDex mc
+              , mppPairOverride = mcPairOverride mc
+              }
+          TaptoolsPPC tc → do
+            when (pccNetworkId pcPriceCommonCfg /= GYMainnet) (throwIO $ userError "Taptools only supports Mainnet.")
+            manager' ← taptoolsManager $ ttcApiKey tc
+            return $ TaptoolsPPB TaptoolsPP
+              { ttppEnv          = mkClientEnv manager' taptoolsBaseUrl
+              , ttppResolution   = ttcResolution tc
+              , ttppPairOverride = ttcPairOverride tc
+              }
           MockPPC mokc   → do
-            mokcePrice ← newMVar Nothing
-            return $ MockPPB MockConfigExtended
-              { mokceName  = mokcName mokc
-              , mokcePrice = mokcePrice
+            mokppPrice ← newMVar Nothing
+            return $ MockPPB MockPP
+              { mokppName  = mokcName mokc
+              , mokppPrice = mokppPrice
               }
   
 data PriceIndicator = PriceMismatch1 | PriceMismatch2 | PriceUnavailable | PriceSourceFail [String] [String] Price | PriceAverage Price
@@ -255,19 +282,17 @@ data SourceError = SourceUnavailable String String
 
 newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceError Price) }
 
-buildGetQuota ∷ PriceCommonCfg → PricesProviderBuilt → GetQuota
+buildGetQuota ∷ PricesProviderBuilt → GetQuota
 
-buildGetQuota PriceCommonCfg {..} (MaestroPPB MaestroConfig {..}) = GetQuota $ \mmtp → do
-  env ← networkIdToMaestroEnv (coerce mcApiKey) pccNetworkId
-
+buildGetQuota (MaestroPPB MaestroPP {..}) = GetQuota $ \mmtp → do
   flip catch handleMaestroSourceFail $ do
-    (pairName, commodityIsA) ← case mcPairOverride of
+    (pairName, commodityIsA) ← case mppPairOverride of
       -- We have to override with given details.
       Just (MaestroPairOverride {..}) → do
         pure (pack mpoPair, mpoCommodityIsFirst)
       -- We are given commodity token and need to find pair name.
       Nothing → do
-        allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex env mcDex)
+        allDexPairs ← dexPairResponsePairs <$> (handleMaestroError (functionLocationIdent <> " - fetching dex pairs") <=< try $ pairsFromDex mppEnv mppDex)
         -- TODO: Remove it once Maestro is able to return for it.
         let adaUsdmPair =
               DexPairInfo
@@ -284,7 +309,7 @@ buildGetQuota PriceCommonCfg {..} (MaestroPPB MaestroConfig {..}) = GetQuota $ \
     let pair = TaggedText pairName
 
     ohlInfo ← handleMaestroError (functionLocationIdent <> " - fetching price from pair") <=< try $
-      pricesFromDex env mcDex pair (Just mcResolution) Nothing Nothing Nothing (Just Descending)
+      pricesFromDex mppEnv mppDex pair (Just mppResolution) Nothing Nothing Nothing (Just Descending)
 
     let info = head ohlInfo
         curPrecision ∷ Int = fromIntegral $ mmtPrecision $ mmtpCurrency mmtp
@@ -321,55 +346,49 @@ buildGetQuota PriceCommonCfg {..} (MaestroPPB MaestroConfig {..}) = GetQuota $ \
 
     functionLocationIdent = "getMaestroPrice"
 
-buildGetQuota PriceCommonCfg {..} (TaptoolsPPB TaptoolsConfig {..}) = GetQuota $ \mmtp → case pccNetworkId of
-  GYMainnet → do
-    commodity ∷ MMToken ← 
-      case ttcPairOverride of
-        Just ttpo → pure MMToken {mmtAc = ttpoAsset ttpo, mmtPrecision = ttpoPrecision ttpo}
-        Nothing
-          | mmtpCurrency mmtp  == mmtLovelace → pure . mmtpCommodity $ mmtp
-          | mmtpCommodity mmtp == mmtLovelace → pure . mmtpCurrency $ mmtp
-          | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
+buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
+  commodity ∷ MMToken ← 
+    case ttppPairOverride of
+      Just ttpo → pure MMToken {mmtAc = ttpoAsset ttpo, mmtPrecision = ttpoPrecision ttpo}
+      Nothing
+        | mmtpCurrency mmtp  == mmtLovelace → pure . mmtpCommodity $ mmtp
+        | mmtpCommodity mmtp == mmtLovelace → pure . mmtpCurrency $ mmtp
+        | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
 
-    manager' ← taptoolsManager ttcApiKey
-    let env = mkClientEnv manager' taptoolsBaseUrl
+  case commodity of
+    MMToken { mmtAc = GYLovelace }                              → do
+      return . Right $ Price (1 % 1)
 
-    case commodity of
-      MMToken { mmtAc = GYLovelace }                              → do
-        return . Right $ Price (1 % 1)
+    MMToken { mmtAc = GYToken cs tn, mmtPrecision = precision } → do
+      let cs'       = withoutQuotes . show $ cs
+          tn'       = withoutQuotes . show . tokenNameToHex $ tn
+          unit      = cs' ++ tn'
 
-      MMToken { mmtAc = GYToken cs tn, mmtPrecision = precision } → do
-        let cs'       = withoutQuotes . show $ cs
-            tn'       = withoutQuotes . show . tokenNameToHex $ tn
-            unit      = cs' ++ tn'
-        
-        ohlcvInfo ← priceFromTaptools unit ttcResolution 1 env
+      ohlcvInfo ← priceFromTaptools unit ttppResolution 1 ttppEnv
 
-        case ohlcvInfo of
-          Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"
-          Right [] → return . Left $ SourceUnavailable "Empty OHLCV." "Taptools"
-          Right (ttOHLCV : _) → do
-            let price         = close ttOHLCV
-                precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
-                adjustedPrice = price * precisionDiff
-            return . Right . Price . toRational $ adjustedPrice
-        where
-          withoutQuotes ∷ String → String
-          withoutQuotes s = case s of
-            ('"':xs) | not (null xs) && last xs == '"' → init xs
-            _                                          → s
+      case ohlcvInfo of
+        Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"
+        Right [] → return . Left $ SourceUnavailable "Empty OHLCV." "Taptools"
+        Right (ttOHLCV : _) → do
+          let price         = close ttOHLCV
+              precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
+              adjustedPrice = price * precisionDiff
+          return . Right . Price . toRational $ adjustedPrice
+      where
+        withoutQuotes ∷ String → String
+        withoutQuotes s = case s of
+          ('"':xs) | not (null xs) && last xs == '"' → init xs
+          _                                          → s
 
-  _         → throwIO $ userError "Only Mainnet is supported."
-
-buildGetQuota _ (MockPPB MockConfigExtended {..}) = GetQuota $ \_ → do
-  mbPrice ← readMVar mokcePrice
+buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
+  mbPrice ← readMVar mokppPrice
   
   case mbPrice of
-    Nothing → return . Left $ SourceUnavailable "Mock prices provider exception." mokceName
+    Nothing → return . Left $ SourceUnavailable "Mock prices provider exception." mokppName
     Just p  → return . Right . Price . toRational $ p
  
 buildGetQuotas ∷ PricesProviders → NonEmpty GetQuota
-buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota ppaCommonCfg <$> ppaPricesCluster
+buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota <$> ppaPricesCluster
 
 buildWeights ∷ PricesProviders → NonEmpty Int
 buildWeights PP {pricesAggregatorPP = PPA {..}} = pccPricesProvidersWeights ppaCommonCfg

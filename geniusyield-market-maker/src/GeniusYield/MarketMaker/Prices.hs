@@ -331,7 +331,7 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPB TaptoolsConfig {..}) = GetQuota $
           | mmtpCommodity mmtp == mmtLovelace → pure . mmtpCurrency $ mmtp
           | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
 
-    manager' ← taptoolsManager
+    manager' ← taptoolsManager ttcApiKey
     let env = mkClientEnv manager' taptoolsBaseUrl
 
     case commodity of
@@ -343,7 +343,7 @@ buildGetQuota PriceCommonCfg {..} (TaptoolsPPB TaptoolsConfig {..}) = GetQuota $
             tn'       = withoutQuotes . show . tokenNameToHex $ tn
             unit      = cs' ++ tn'
         
-        ohlcvInfo ← priceFromTaptools ttcApiKey unit ttcResolution 1 env
+        ohlcvInfo ← priceFromTaptools unit ttcResolution 1 env
 
         case ohlcvInfo of
           Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"

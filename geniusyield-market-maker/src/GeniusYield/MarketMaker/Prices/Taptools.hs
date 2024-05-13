@@ -4,9 +4,10 @@ import           Data.Aeson
 import           Deriving.Aeson
 import           Data.Proxy
 import           Data.Text                        (Text)
+import           Data.Text.Encoding               (encodeUtf8)
 import           Data.Time.Clock.POSIX            (POSIXTime)
 import           GeniusYield.GYConfig             (Confidential (..))
-import           Network.HTTP.Client              (newManager, Manager)
+import           Network.HTTP.Client              (newManager, Manager, ManagerSettings(..), Request(..))
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import           Servant.API
 import           Servant.Client
@@ -37,8 +38,7 @@ instance ToHttpApiData TtResolution where
 type TtUnit = String
 
 type TtAPI =
-  "token" :> "ohlcv" :> Header "x-api-key" Text
-                     :> QueryParam "unit" TtUnit
+  "token" :> "ohlcv" :> QueryParam "unit" TtUnit
                      :> QueryParam' '[Required, Strict] "interval" TtResolution
                      :> QueryParam "numIntervals" Int
                      :> Get '[JSON] [TtOHLCV]
@@ -64,16 +64,22 @@ instance FromJSON TtOHLCV where
 api :: Proxy TtAPI
 api = Proxy
 
-getTtOHLCV :: Maybe Text -> Maybe TtUnit -> TtResolution -> Maybe Int -> ClientM [TtOHLCV]
+getTtOHLCV :: Maybe TtUnit -> TtResolution -> Maybe Int -> ClientM [TtOHLCV]
 getTtOHLCV = client api
 
-taptoolsManager :: IO Manager
-taptoolsManager = newManager tlsManagerSettings
+taptoolsManager :: Confidential Text -> IO Manager
+taptoolsManager apiKey = newManager $ tlsManagerSettings { managerModifyRequest = withHeaders }
+  where
+    Confidential apiKey' = apiKey
+
+    withHeaders :: Request -> IO Request
+    withHeaders req = do
+      return $ req { requestHeaders = ("x-api-key", encodeUtf8 apiKey') :
+                                      filter (("x-api-key" /=) . fst) (requestHeaders req)
+                   }
 
 taptoolsBaseUrl :: BaseUrl
 taptoolsBaseUrl = BaseUrl Http "openapi.taptools.io" 80 "api/v1"
 
-priceFromTaptools :: Confidential Text -> TtUnit -> TtResolution -> Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
-priceFromTaptools apiKey unit resolution numIntervals = runClientM (getTtOHLCV (Just apiKey') (Just unit) resolution  (Just numIntervals))
-  where
-    Confidential apiKey' = apiKey
+priceFromTaptools :: TtUnit -> TtResolution -> Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
+priceFromTaptools unit resolution numIntervals = runClientM (getTtOHLCV (Just unit) resolution  (Just numIntervals))

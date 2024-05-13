@@ -47,7 +47,7 @@ import           GHC.TypeNats                              (SomeNat (SomeNat),
                                                             someNatVal)
 import           Maestro.Client.V1
 import           Maestro.Types.V1                          as Maestro
-import           Servant.Client                            (ClientEnv, mkClientEnv)
+import           Servant.Client                            (ClientEnv)
 
 
 -- $setup
@@ -260,9 +260,9 @@ buildPP c dex pc =
               }
           TaptoolsPPC tc → do
             when (pccNetworkId pcPriceCommonCfg /= GYMainnet) (throwIO $ userError "Taptools only supports Mainnet.")
-            manager' ← taptoolsManager $ ttcApiKey tc
+            env ← taptoolsEnv $ ttcApiKey tc
             return $ TaptoolsPPB TaptoolsPP
-              { ttppEnv          = mkClientEnv manager' taptoolsBaseUrl
+              { ttppEnv          = env
               , ttppResolution   = ttcResolution tc
               , ttppPairOverride = ttcPairOverride tc
               }
@@ -359,10 +359,8 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
     MMToken { mmtAc = GYLovelace }    → do
       return . Right $ Price (1 % 1)
 
-    MMToken { mmtAc = GYToken cs tn } → do
-      let cs'       = withoutQuotes . show $ cs
-          tn'       = withoutQuotes . show . tokenNameToHex $ tn
-          unit      = cs' ++ tn'
+    MMToken { mmtAc = gyt@(GYToken {}) } → do
+      let unit = TtUnit gyt
 
       ohlcvInfo ← priceFromTaptools unit ttppResolution 1 ttppEnv
 
@@ -370,13 +368,8 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
         Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"
         Right [] → return . Left $ SourceUnavailable "Empty OHLCV." "Taptools"
         Right (ttOHLCV : _) → do
-          let price         = close ttOHLCV
+          let price = close ttOHLCV
           return . Right . Price . toRational $ price
-      where
-        withoutQuotes ∷ String → String
-        withoutQuotes s = case s of
-          ('"':xs) | not (null xs) && last xs == '"' → init xs
-          _                                          → s
 
 buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
   mbPrice ← readMVar mokppPrice

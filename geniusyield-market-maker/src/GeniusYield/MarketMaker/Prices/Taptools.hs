@@ -4,10 +4,12 @@ import           Data.Aeson
 import           Deriving.Aeson
 import           Data.Proxy
 import           Data.Text                        (Text)
+import qualified Data.Text                        as Text
 import           Data.Text.Encoding               (encodeUtf8)
 import           Data.Time.Clock.POSIX            (POSIXTime)
 import           Data.Word                        (Word8)
 import           GeniusYield.GYConfig             (Confidential (..))
+import           GeniusYield.Types                (GYAssetClass)
 import           Network.HTTP.Client              (newManager, Manager, ManagerSettings(..), Request(..))
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import           Servant.API
@@ -36,7 +38,13 @@ instance ToHttpApiData TtResolution where
     TtRes1w  -> "1w"
     TtRes1M  -> "1M"
 
-type TtUnit = String
+newtype TtUnit = TtUnit {unTtUnit ∷ GYAssetClass}
+  deriving stock (Eq, Ord, Show)
+
+instance ToHttpApiData TtUnit where
+  toUrlPiece (TtUnit ac) = removeDot $ toUrlPiece ac
+    where
+      removeDot = Text.filter (/= '.')
 
 type TtAPI =
   "token" :> "ohlcv" :> QueryParam "unit" TtUnit
@@ -71,6 +79,11 @@ taptoolsManager apiKey = newManager $ tlsManagerSettings { managerModifyRequest 
       return $ req { requestHeaders = ("x-api-key", encodeUtf8 apiKey') :
                                       filter (("x-api-key" /=) . fst) (requestHeaders req)
                    }
+
+taptoolsEnv :: Confidential Text -> IO ClientEnv
+taptoolsEnv apiKey = do
+  manager' <- taptoolsManager apiKey
+  return $ mkClientEnv manager' taptoolsBaseUrl
 
 taptoolsBaseUrl :: BaseUrl
 taptoolsBaseUrl = BaseUrl Https "openapi.taptools.io" 443 "api/v1"

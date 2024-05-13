@@ -140,11 +140,12 @@ mbStateMachine ∷ Strategy
                → GYProviders
                → PricesProviders
                → DEXInfo
-               → MBFret
                → StateT MBFret IO ()
-mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId providers pp di mbFret = do
+mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId providers pp di = do
   let cfg          = ppaCommonCfg . pricesAggregatorPP $ pp
       respiteDelay = ceiling $ fromMaybe 1 (pccRespiteDelayFactor cfg) * fromIntegral mbDelay
+
+  mbFret ← get
 
   case mbFret of
     MBReady → do
@@ -171,10 +172,10 @@ mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
           lift $ threadDelay respiteDelay
 
     MBSpooked1 {..} → do
-      if mbs1Relax > pccAfterExitRelaxAim1 cfg then do
+      if mbs1Relax >= pccAfterExitRelaxAim1 cfg then do
            lift $ gyLogInfo providers logNS $ "[MBSpooked1] Resuming strategy"
            put MBReady
-         else if mbs1Worse > pccAfterExitWorseMax1 cfg
+         else if mbs1Worse >= pccAfterExitWorseMax1 cfg
                  then do
                    lift $ gyLogWarning providers logNS $ "[MBSpooked1] Price mismatch among providers lasting a long time!"
                    put MBSpooked2 { mbs2Relax = 0 }
@@ -182,51 +183,51 @@ mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
                    pe ← lift $ priceEstimate' pp mbToken
 
                    case pe of
-                     PriceMismatch1    → do
+                     PriceMismatch1           → do
                        lift $ gyLogInfo providers logNS $ "[MBSpooked1] Price mismatch persists"
                        put MBSpooked1 { mbs1Relax = 0, mbs1Worse = mbs1Worse + 1 }
 
-                     PriceMismatch2    → do
+                     PriceMismatch2           → do
                        lift $ gyLogWarning providers logNS $ "[MBSpooked1] Outrageous price mismatch among providers!"
                        put MBSpooked2 { mbs2Relax = 0 }
 
-                     PriceUnavailable  → do
+                     PriceUnavailable         → do
                        lift $ gyLogWarning providers logNS $ "[MBSpooked1] All Prices Providers unavailable!"
                        put MBSpooked2 { mbs2Relax = 0 }
 
-                     psf@PriceSourceFail {} → do
-                       lift $ logPricesProviderFail providers psf
+                     PriceSourceFail es pps _ → do
+                       lift $ logPricesProviderFail providers es pps
 
-                     _                 → do
+                     PriceAverage _           → do
                        lift $ gyLogInfo providers logNS $ "[MBSpooked1] Apparent recovery of Prices Providers; waiting for observation period to elapse."
                        put MBSpooked1 { mbs1Relax = mbs1Relax + 1, mbs1Worse = mbs1Worse }
 
                    lift $ threadDelay respiteDelay
 
     MBSpooked2 {..} → do
-      if mbs2Relax > pccAfterExitRelaxAim2 cfg then do
+      if mbs2Relax >= pccAfterExitRelaxAim2 cfg then do
            lift $ gyLogInfo providers logNS $ "[MBSpooked2] Resuming strategy"
            put MBReady
          else do
            pe ← lift $ priceEstimate' pp mbToken
 
            case pe of
-             PriceMismatch1    → do
+             PriceMismatch1           → do
                lift $ gyLogWarning providers logNS $ "[MBSpooked2] Price mismatch persists"
                put MBSpooked2 { mbs2Relax = 0 }
 
-             PriceMismatch2    → do
+             PriceMismatch2           → do
                lift $ gyLogWarning providers logNS $ "[MBSpooked2] Outrageous price mismatch persists"
                put MBSpooked2 { mbs2Relax = 0 }
 
-             PriceUnavailable  → do
+             PriceUnavailable         → do
                lift $ gyLogWarning providers logNS $ "[MBSpooked2] All Prices Providers unavailable"
                put MBSpooked2 { mbs2Relax = 0 }
 
-             psf@PriceSourceFail {} → do
-               lift $ logPricesProviderFail providers psf
+             PriceSourceFail es pps _ → do
+               lift $ logPricesProviderFail providers es pps
 
-             _                 → do
+             PriceAverage _           → do
                lift $ gyLogInfo providers logNS $ "[MBSpooked2] Apparent recovery of Prices Providers; waiting for observation period to elapse."
                put MBSpooked2 { mbs2Relax = mbs2Relax + 1 }
 
@@ -241,7 +242,7 @@ evolveStrategy
   → DEXInfo
   → StateT MBFret IO ()
 evolveStrategy runStrategy mb netId providers pp di =
-  forever $ get >>= mbStateMachine runStrategy mb netId providers pp di
+  forever $ mbStateMachine runStrategy mb netId providers pp di
         
 executeStrategy
   ∷ Strategy

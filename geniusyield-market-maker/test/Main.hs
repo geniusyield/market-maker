@@ -55,7 +55,7 @@ runSequence = do
     executeStrategy (fixedSpreadVsMarketPriceStrategy (mbcStrategyConfig mbc)) mb netId providers pp di logRef
 
   finalLog <- readMVar logRef
-  return $ examineLog finalLog
+  return . examineLog . reverse $ finalLog
 
 examineSequence :: TestTree
 examineSequence = testCase "Test Prices Providers status sequence" $ do

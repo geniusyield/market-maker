@@ -196,8 +196,8 @@ withPriceEstimate k pp _ mmt = do
 
   pe ← priceEstimate pp mmTokenPair
   case pe of
-    psf@(PriceSourceFail _ _ p) → do
-      logPricesProviderFail providers psf
+    PriceSourceFail es pps p → do
+      logPricesProviderFail providers es pps
       actions ← k p
       return (actions, UACNormal)
     PriceMismatch1    → return (mempty, UACSpooked1)
@@ -432,9 +432,7 @@ orderIsToBeRemoved mPrice _cancelLimitSpread@Spread {..} (mmtp, poi) =
 flip4 ∷ (a → b → c → d → r) → (b → c → d → a → r)
 flip4 f = \b c d a → f a b c d
 
-logPricesProviderFail ∷ GYProviders → PriceIndicator → IO ()
-logPricesProviderFail providers pI = case pI of
-  PriceSourceFail es pps _ → do
-    gyLogWarning providers logNS $ "Some prices provider(s) failed: " ++ (show pps)
-    mapM_ (gyLogInfo providers logNS) es
-  _                        → return ()
+logPricesProviderFail ∷ GYProviders → [String] → [String] → IO ()
+logPricesProviderFail providers es pps = do
+  gyLogWarning providers logNS $ "Some prices provider(s) failed: " ++ (show pps)
+  mapM_ (gyLogWarning providers logNS) es

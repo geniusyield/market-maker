@@ -356,10 +356,10 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
         | otherwise                         → throwIO $ userError "Trading commodity pairs (non-ADA) not yet supported."
 
   case commodity of
-    MMToken { mmtAc = GYLovelace }                              → do
+    MMToken { mmtAc = GYLovelace }    → do
       return . Right $ Price (1 % 1)
 
-    MMToken { mmtAc = GYToken cs tn, mmtPrecision = precision } → do
+    MMToken { mmtAc = GYToken cs tn } → do
       let cs'       = withoutQuotes . show $ cs
           tn'       = withoutQuotes . show . tokenNameToHex $ tn
           unit      = cs' ++ tn'
@@ -371,9 +371,7 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
         Right [] → return . Left $ SourceUnavailable "Empty OHLCV." "Taptools"
         Right (ttOHLCV : _) → do
           let price         = close ttOHLCV
-              precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
-              adjustedPrice = price * precisionDiff
-          return . Right . Price . toRational $ adjustedPrice
+          return . Right . Price . toRational $ price
       where
         withoutQuotes ∷ String → String
         withoutQuotes s = case s of
@@ -386,7 +384,7 @@ buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
   case mbPrice of
     Nothing → return . Left $ SourceUnavailable "Mock prices provider exception." mokppName
     Just p  → return . Right . Price . toRational $ p
- 
+
 buildGetQuotas ∷ PricesProviders → NonEmpty GetQuota
 buildGetQuotas PP {pricesAggregatorPP = PPA {..}} = buildGetQuota <$> ppaPricesCluster
 

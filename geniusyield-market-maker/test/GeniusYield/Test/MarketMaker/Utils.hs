@@ -30,7 +30,7 @@ augmentedLogRun :: MVar [LogData]
                 -> GYLogNamespace -> GYLogSeverity -> String
                 -> IO ()
 augmentedLogRun logRef f ns s msg = do
-  modifyMVar_ logRef $ \current -> pure $ current ++ [LDLog (MBLog (s, ns, msg))]
+  modifyMVar_ logRef $ \current -> pure $ LDLog (MBLog (s, ns, msg)) : current
   f ns s msg
 
 mbTest :: forall a. (PPStatus -> StateT a IO ()) -> StateT a IO ()

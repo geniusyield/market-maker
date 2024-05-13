@@ -3,7 +3,7 @@ module GeniusYield.Test.MarketMaker.MakerBot where
 import qualified Data.List.NonEmpty                 as NE (toList)
 import           Control.Concurrent.MVar
 import           Control.Monad                      (zipWithM_)
-import           Control.Monad.State                (StateT (..), get, lift)
+import           Control.Monad.State                (StateT (..), lift)
 import           Data.Maybe                         (catMaybes)
 import           GeniusYield.Api.Dex.Constants      (DEXInfo (..))
 import           GeniusYield.MarketMaker.MakerBot   (MakerBot(..), MBFret(..), mbStateMachine)
@@ -14,12 +14,12 @@ import           GeniusYield.Types
 
 
 getMockMVars :: PricesProviders -> [MVar (Maybe Double)]
-getMockMVars pp = map mokppPrice mces
+getMockMVars pp = map mokppPrice mpps
   where
-    mces = catMaybes $ maybeMock <$> (NE.toList . ppaPricesCluster . pricesAggregatorPP $ pp)
-    maybeMock :: PricesProviderBuilt -> Maybe MockConfigExtended
+    mpps = catMaybes $ maybeMock <$> (NE.toList . ppaPricesCluster . pricesAggregatorPP $ pp)
+    maybeMock :: PricesProviderBuilt -> Maybe MockPP
     maybeMock ppb = case ppb of
-      MockPPB mce -> Just mce
+      MockPPB mpp -> Just mpp
       _           -> Nothing
 
 updateMockVars :: [MVar (Maybe Double)] -> PPStatus -> IO ()
@@ -38,10 +38,10 @@ evolveStrategy
   -> StateT MBFret IO ()
 evolveStrategy runStrategy mb netId providers pp di logRef = do
   mbTest $ \ppStatus -> do
-    lift $ modifyMVar_ logRef $ \current -> pure $ current ++ [LDStatus ppStatus]
+    lift $ modifyMVar_ logRef $ \current -> pure $ LDStatus ppStatus : current
     lift $ updateMockVars (getMockMVars pp) ppStatus
     
-    get >>= mbStateMachine runStrategy mb netId providers pp di
+    mbStateMachine runStrategy mb netId providers pp di
        
 executeStrategy
   :: Strategy

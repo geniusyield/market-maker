@@ -6,6 +6,7 @@ import           Data.Proxy
 import           Data.Text                        (Text)
 import           Data.Text.Encoding               (encodeUtf8)
 import           Data.Time.Clock.POSIX            (POSIXTime)
+import           Data.Word                        (Word8)
 import           GeniusYield.GYConfig             (Confidential (..))
 import           Network.HTTP.Client              (newManager, Manager, ManagerSettings(..), Request(..))
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
@@ -40,7 +41,7 @@ type TtUnit = String
 type TtAPI =
   "token" :> "ohlcv" :> QueryParam "unit" TtUnit
                      :> QueryParam' '[Required, Strict] "interval" TtResolution
-                     :> QueryParam "numIntervals" Int
+                     :> QueryParam "numIntervals" Word8
                      :> Get '[JSON] [TtOHLCV]
 
 data TtOHLCV = TtOHLCV
@@ -50,21 +51,14 @@ data TtOHLCV = TtOHLCV
   , open   :: !Double
   , time   :: !POSIXTime
   , volume :: !Double
-  } deriving stock Show
+  } deriving stock (Show, Generic)
 
-instance FromJSON TtOHLCV where
-  parseJSON = withObject "TtOHLCV" $ \v ->
-    TtOHLCV <$> v .: "close"
-            <*> v .: "high"
-            <*> v .: "low"
-            <*> v .: "open"
-            <*> v .: "time"
-            <*> v .: "volume"
+instance FromJSON TtOHLCV
 
 api :: Proxy TtAPI
 api = Proxy
 
-getTtOHLCV :: Maybe TtUnit -> TtResolution -> Maybe Int -> ClientM [TtOHLCV]
+getTtOHLCV :: Maybe TtUnit -> TtResolution -> Maybe Word8 -> ClientM [TtOHLCV]
 getTtOHLCV = client api
 
 taptoolsManager :: Confidential Text -> IO Manager
@@ -79,7 +73,7 @@ taptoolsManager apiKey = newManager $ tlsManagerSettings { managerModifyRequest 
                    }
 
 taptoolsBaseUrl :: BaseUrl
-taptoolsBaseUrl = BaseUrl Http "openapi.taptools.io" 80 "api/v1"
+taptoolsBaseUrl = BaseUrl Https "openapi.taptools.io" 443 "api/v1"
 
-priceFromTaptools :: TtUnit -> TtResolution -> Int -> ClientEnv -> IO (Either ClientError [TtOHLCV])
+priceFromTaptools :: TtUnit -> TtResolution -> Word8 -> ClientEnv -> IO (Either ClientError [TtOHLCV])
 priceFromTaptools unit resolution numIntervals = runClientM (getTtOHLCV (Just unit) resolution  (Just numIntervals))

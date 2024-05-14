@@ -1,5 +1,6 @@
 module GeniusYield.MarketMaker.Prices.Taptools where
 
+import           Control.Exception                (Exception (..))
 import           Data.Aeson
 import           Deriving.Aeson
 import           Data.Proxy
@@ -46,10 +47,12 @@ instance ToHttpApiData TtUnit where
     where
       removeDot = Text.filter (/= '.')
 
+type TtNumCandles = Word8
+
 type TtAPI =
   "token" :> "ohlcv" :> QueryParam "unit" TtUnit
                      :> QueryParam' '[Required, Strict] "interval" TtResolution
-                     :> QueryParam "numIntervals" Word8
+                     :> QueryParam "numIntervals" TtNumCandles
                      :> Get '[JSON] [TtOHLCV]
 
 data TtOHLCV = TtOHLCV
@@ -62,6 +65,12 @@ data TtOHLCV = TtOHLCV
   } deriving stock (Show, Generic)
 
 instance FromJSON TtOHLCV
+
+data TaptoolsPriceException
+  = TaptoolsError !Text               -- ^ Other taptools error.
+  | TaptoolsClientError !ClientError  -- ^ Servant client error while querying taptools.
+  deriving stock (Eq, Show)
+  deriving anyclass Exception
 
 api :: Proxy TtAPI
 api = Proxy
@@ -88,5 +97,5 @@ taptoolsEnv apiKey = do
 taptoolsBaseUrl :: BaseUrl
 taptoolsBaseUrl = BaseUrl Https "openapi.taptools.io" 443 "api/v1"
 
-priceFromTaptools :: TtUnit -> TtResolution -> Word8 -> ClientEnv -> IO (Either ClientError [TtOHLCV])
+priceFromTaptools :: TtUnit -> TtResolution -> TtNumCandles -> ClientEnv -> IO (Either ClientError [TtOHLCV])
 priceFromTaptools unit resolution numIntervals = runClientM (getTtOHLCV (Just unit) resolution  (Just numIntervals))

@@ -5,7 +5,7 @@ module GeniusYield.MarketMaker.Prices where
 import           Control.Applicative                       ((<|>))
 import           Control.Arrow                             (Arrow (first), (&&&))
 import           Control.Concurrent.MVar
-import           Control.Exception                         (Exception, throwIO, try, catch, displayException)
+import           Control.Exception                         (Exception, throwIO, try, catch)
 import           Control.Monad                             ((<=<))
 import           Data.Aeson                                (parseJSON)
 import           Data.ByteString.Char8                     (unpack)
@@ -145,12 +145,6 @@ data MMTokenPair = MMTokenPair
   }
   deriving stock (Eq, Ord, Show)
 
-data MaestroPriceException
-  = MaestroPairNotFound
-  | MaestroApiError !Text !MaestroError
-  deriving stock (Show)
-  deriving anyclass (Exception)
-
 data MaestroPairOverride = MaestroPairOverride
   { mpoPair             ∷ !String,
     mpoCommodityIsFirst ∷ !Bool
@@ -273,11 +267,11 @@ buildPP c dex pc =
               , mokppPrice = mokppPrice
               }
   
-data PriceIndicator = PriceMismatch1 | PriceMismatch2 | PriceUnavailable | PriceSourceFail [String] [String] Price | PriceAverage Price
+data PriceIndicator = PriceMismatch1 | PriceMismatch2 | PriceUnavailable | PriceSourceFail [PricesProviderException] [String] Price | PriceAverage Price
   deriving stock Show
 
--- | Prices provider error:  `SourceUnavailable displayException pricesProvider`.
-data SourceError = SourceUnavailable String String
+-- | Prices provider error:  `SourceUnavailable pricesProviderException pricesProvider`.
+data SourceError = SourceUnavailable PricesProviderException String
   deriving stock Show
 
 newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceError Price) }
@@ -365,8 +359,8 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
       ohlcvInfo ← priceFromTaptools unit ttppResolution 1 ttppEnv
 
       case ohlcvInfo of
-        Left e   → return . Left $ SourceUnavailable (displayException e) "Taptools"
-        Right [] → return . Left $ SourceUnavailable "Empty OHLCV." "Taptools"
+        Left e   → return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsClientError e) "Taptools"
+        Right [] → return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsError "Empty OHLCV.") "Taptools"
         Right (ttOHLCV : _) → do
           let price = close ttOHLCV
           return . Right . Price . toRational $ price
@@ -375,7 +369,7 @@ buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
   mbPrice ← readMVar mokppPrice
   
   case mbPrice of
-    Nothing → return . Left $ SourceUnavailable "Mock prices provider exception." mokppName
+    Nothing → return . Left $ SourceUnavailable (PPMockErr $ MockError "Mock prices provider exception.") mokppName
     Just p  → return . Right . Price . toRational $ p
 
 buildGetQuotas ∷ PricesProviders → NonEmpty GetQuota
@@ -525,8 +519,25 @@ getOrderBookPrices PP {orderBookPP = (c, dex)} mmts price priceCheckSpread = do
 
 
 -------------------------------------------------------------------------------
--- Maestro-Exception Helper Functions
+-- Exceptions and exception-handling helper functions
 -------------------------------------------------------------------------------
+
+data MaestroPriceException
+  = MaestroPairNotFound
+  | MaestroApiError !Text !MaestroError
+  deriving stock (Show)
+  deriving anyclass (Exception)
+
+data MockPriceException = MockError !Text
+  deriving stock Show
+  deriving anyclass Exception
+
+data PricesProviderException
+  = PPMaestroErr MaestroPriceException
+  | PPTaptoolsErr TaptoolsPriceException
+  | PPMockErr MockPriceException
+  deriving stock Show
+  deriving anyclass Exception
 
 -- | Remove headers (if `MaestroError` contains `ClientError`).
 silenceHeadersMaestroClientError ∷ MaestroError → MaestroError
@@ -543,4 +554,4 @@ handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 
 -- | Utility function to return a `SourceError` if a `MaestroPriceException` is thrown.
 handleMaestroSourceFail ∷ MaestroPriceException → IO (Either SourceError a)
-handleMaestroSourceFail mpe = pure . Left $ SourceUnavailable (displayException mpe) "Maestro"
+handleMaestroSourceFail mpe = pure . Left $ SourceUnavailable (PPMaestroErr mpe) "Maestro"

@@ -139,11 +139,11 @@ Note that two prices providers are supported:  *Maestro* and *Taptools*.  It is 
 * `mbc_price_config` gives the configuration on how to get market price using [Maestro](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc) or [Taptools](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get) endpoints, for a token.
   * `pc_price_common_cfg` contains the configuration parameters common to both prices providers.
     * `pcc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
-    * `pcc_price_diff_threshold1` if the *relative standard deviation*[^relstddev] among the prices providers is above this parameter, automatic cancelation of open orders is triggered, without raising logs' severity to "warning".
+    * `pcc_price_diff_threshold1` if the *relative standard deviation*[^relstddev] among the prices providers is above this parameter, automatic cancelation of open orders is triggered (without raising logs' severity to "warning").
     * `pcc_price_diff_threshold2` which must be greater than or equal to the above, raises logs' severity to "warning".
-    * `pcc_after_exit_relax_aim1` is the relaxation waiting time (in cycles) before re-entering the market (resume strategy) after piercing threshold1.
-    * `pcc_after_exit_worse_max1` is the waiting time (in cycles) to raise logs' severity to "warning" if mismatch among prices providers persists.
-    * `pcc_after_exit_relax_aim2` is the relaxation waiting time (in cycles) before re-entering the market after piercing threshold2.
+    * `pcc_after_exit_relax_aim1` is the relaxation waiting time (in iterations) before re-entering the market (resume strategy) after piercing threshold1.
+    * `pcc_after_exit_worse_max1` is the waiting time (in iterations) to raise logs' severity to "warning" if mismatch among prices providers persists.
+    * `pcc_after_exit_relax_aim2` is the relaxation waiting time (in iterations) before re-entering the market after piercing threshold2.
     * `pcc_prices_providers_weights` is the list of relative weights for each prices provider in the computation of the average price.
   * `pc_prices_provider_cfgs` contains the configuration parameters for each prices provider.
 
@@ -151,11 +151,10 @@ Note that two prices providers are supported:  *Maestro* and *Taptools*.  It is 
     * `mc_api_key` is the Maestro API key.
     * `mc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc). We take the closing price of the latest resolution window.
     * `mc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported. Caution must be exercised in setting this value. We use the closing price from Maestro's OHLC endpoint and a price feed from AMM dex is less susceptible to price alterations as trades cannot happen at an arbitrary price.
+    > [!CAUTION]
+    > Please make sure to use `minswap` for the `pc_dex` configuration setting. Using an AMM based DEX as price oracle helps to combat malicious price manipulation.
 
-> [!CAUTION]
-> Please make sure to use `minswap` for the `pc_dex` configuration setting. Using an AMM based DEX as price oracle helps to combat malicious price manipulation.
-
-    `mc_pair_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for a corresponding mainnet token, one can specify desired (overriding) pair in `mpo_pair` & mention whether commodity is first token of the given pair or not in `mpo_commodity_is_first` field. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
+     * `mc_pair_override` is optional and is needed in case one is not running bot on Mainnet. Since tokens on test network aren't actively traded, their price is not returned for by Maestro endpoint. To still get mainnet price for a corresponding mainnet token, one can specify desired (overriding) pair in `mpo_pair` & mention whether commodity is first token of the given pair or not in `mpo_commodity_is_first` field. In the above configuration, we are overriding the testnet GENS asset class `c6e65ba7878b2f8ea0ad39287d3e2fd256dc5c4160fc19bdf4c4d87e.7447454e53`, for the mainnet token pair `ADA-GENS`, and GENS is the second token in the pair so `mpo_commodity_is_first` is set to **false**. If the pair instead was `GENS-ADA` then `mpo_commodity_is_first` should be set to **true**.
 
   * Taptools:
     * `ttc_api_key` is the Taptools API key.

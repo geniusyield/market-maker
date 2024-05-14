@@ -362,8 +362,10 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
         Left e   → return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsClientError e) "Taptools"
         Right [] → return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsError "Empty OHLCV.") "Taptools"
         Right (ttOHLCV : _) → do
-          let price = close ttOHLCV
-          return . Right . Price . toRational $ price
+          let price         = close ttOHLCV
+              precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
+              adjustedPrice = price * precisionDiff
+          return . Right . Price . toRational $ adjustedPrice
 
 buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
   mbPrice ← readMVar mokppPrice

@@ -353,7 +353,7 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
     MMToken { mmtAc = GYLovelace }    → do
       return . Right $ Price (1 % 1)
 
-    MMToken { mmtAc = gyt@(GYToken {}) } → do
+    MMToken { mmtAc = gyt@(GYToken {}), mmtPrecision = precision } → do
       let unit = TtUnit gyt
 
       ohlcvInfo ← priceFromTaptools unit ttppResolution 1 ttppEnv

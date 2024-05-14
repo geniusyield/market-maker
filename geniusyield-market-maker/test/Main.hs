@@ -16,6 +16,7 @@ import           GeniusYield.OrderBot.DataSource.Providers (connectDB)
 import           GeniusYield.Types                         (GYNetworkId (..), addressToText,
                                                             gyLog', GYLog(..))
 import           GeniusYield.Types.Providers               (gyLogInfo)
+import           System.Environment                        (getEnv)
 import           Test.Tasty
 import           Test.Tasty.HUnit
 
@@ -27,8 +28,8 @@ runSequence :: IO Bool
 runSequence = do
   logRef  <- newMVar []
 
-  let frameworkCfgPath = "../secrets/my-atlas-config-maestro.json"
-      mBotConfigFile   = Just "../secrets/my-preprod-maker-bot-config-gens-v2-test.yaml"
+  frameworkCfgPath <- getEnv "TEST_FRAMEWORK_CONFIG_FILE"
+  mBotConfigFile   <- Just <$> getEnv "TEST_MMBOT_CONFIG_FILE"
 
   coreCfg <- coreConfigIO frameworkCfgPath
   mbc     <- readMBotConfig mBotConfigFile

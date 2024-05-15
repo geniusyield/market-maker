@@ -1,6 +1,6 @@
 cabal-version:   3.4
 name:            geniusyield-market-maker
-version:         0.4.0
+version:         0.5.0
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 synopsis:
@@ -25,11 +25,18 @@ common common-deps
     , containers
     , filepath
     , geniusyield-orderbot-framework:common
+    , http-client
+    , http-client-tls
     , mtl
     , mwc-random
     , serialise
+    , servant
+    , servant-client
     , split
+    , tasty
+    , tasty-hunit
     , text
+    , time
     , yaml
 
 common common-lang
@@ -114,24 +121,22 @@ library orderbook-annset
 
   exposed-modules: GeniusYield.OrderBot.OrderBook.AnnSet
 
--- Build targets
-
-executable geniusyield-market-maker-exe
+library geniusyield-market-maker-lib
   import:           common-lang
   import:           common-deps
   import:           common-ghc-opts
-  main-is:          Main.hs
-  other-modules:
+  hs-source-dirs:   src
+  exposed-modules:
     GeniusYield.MarketMaker.Constants
     GeniusYield.MarketMaker.Equity
     GeniusYield.MarketMaker.MakerBot
     GeniusYield.MarketMaker.MakerBotConfig
     GeniusYield.MarketMaker.Prices
+    GeniusYield.MarketMaker.Prices.Taptools
     GeniusYield.MarketMaker.Spread
     GeniusYield.MarketMaker.Strategies
     GeniusYield.MarketMaker.User
     GeniusYield.MarketMaker.Utils
-
   build-depends:
     , cardano-api
     , deriving-aeson
@@ -142,16 +147,51 @@ executable geniusyield-market-maker-exe
     , geniusyield-orderbot-framework:common
     , ghc-typelits-knownnat
     , maestro-sdk
-    , MonadRandom
-    , plutus-core
-    , plutus-ledger-api
-    , ply-core
-    , random
-    , random-fu
-    , vector
-
-  hs-source-dirs:   . src
-  ghc-options:      -Wall
-  default-language: Haskell2010
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
+
+-- Build targets
+
+executable geniusyield-market-maker-exe
+  import:           common-lang
+  import:           common-deps
+  import:           common-ghc-opts
+  main-is:          Main.hs
+  build-depends:
+      cardano-api
+    , deriving-aeson
+    , envy
+    , geniusyield-annset
+    , geniusyield-dex-api
+    , geniusyield-market-maker:{datasource-providers, orderbook-annset, geniusyield-market-maker-lib}
+    , geniusyield-orderbot-framework:common
+    , ghc-typelits-knownnat
+    , maestro-sdk
+  hs-source-dirs:   .
+  mixins:
+    geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
+
+test-suite pproviders-status-sequence
+  import:           common-lang
+  import:           common-deps
+  import:           common-ghc-opts
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  other-modules:
+    GeniusYield.Test.MarketMaker.MakerBot
+    GeniusYield.Test.MarketMaker.Utils
+  build-depends:    base
+                  , cardano-api
+                  , deriving-aeson
+                  , envy
+                  , geniusyield-annset
+                  , geniusyield-dex-api
+                  , geniusyield-market-maker:{datasource-providers, orderbook-annset, geniusyield-market-maker-lib}
+                  , geniusyield-orderbot-framework:common
+                  , ghc-typelits-knownnat
+                  , maestro-sdk
+                  , tasty
+                  , tasty-hunit
+  mixins:
+    geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)  

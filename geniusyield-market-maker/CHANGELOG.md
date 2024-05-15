@@ -1,5 +1,10 @@
 # Revision history for geniusyield-market-maker
 
+## 0.5.0 -- 2024-05-14
+
+* Added support for having Taptools as a second prices provider.
+* Implemented safety mechanism for temporarily exiting the market if the difference between both prices providers becomes greater than a configured threshold.
+
 ## 0.4.0 -- 2024-05-02
 
 * Supports latest version of [`dex-contracts-api`](https://github.com/geniusyield/dex-contracts-api) which adds support of v1.1 family of scripts.

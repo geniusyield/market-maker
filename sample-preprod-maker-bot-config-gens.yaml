@@ -44,21 +44,46 @@ mbc_user:
 mbc_delay: 120000000
 # Price provider configuration.
 mbc_price_config:
-  # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
-  pc_api_key: <<MAESTRO_TOKEN>>
-  # Resolution parameter of above API call. Note that we take the closing price of latest resolution window.
-  pc_resolution: 15m
-  pc_network_id: mainnet
-  # Supported values of `pc_dex` are `minswap` and `genius-yield`.
-  # So put either
-  # pc_dex: minswap
-  # or
-  # pc_dex: genius-yield
-  pc_dex: put either minswap or genius-yield
-  # Following field (`pc_override`) is not to be provided for Mainnet. It is their when testing market maker bot with dummy tokens.
-  pc_override:
-    mpo_pair: ADA-GENS
-    mpo_commodity_is_first: false
+  # Prices providers' common configuration parameters.
+  pc_price_common_cfg:
+    pcc_network_id:  mainnet
+    # Difference threshold triggering automatic cancelation of open orders, without warning.
+    pcc_price_diff_threshold1: 0.3
+    # Difference threshold triggering automatic cancelation of open orders, sending a warning.  Should not be smaller than Threshold1.
+    pcc_price_diff_threshold2: 0.6
+    # Relaxation time (in cycles) to return to normal after piercing threshold1.
+    pcc_after_exit_relax_aim1:  4
+    # Waiting time (in cycles) to start warning after piercing threshold1.
+    pcc_after_exit_worse_max1:  5
+    # Relaxation time (in cycles) to return to normal after piercing threshold2.
+    pcc_after_exit_relax_aim2:  8
+    # Relative weights in the computation of average price. Example: 50% (maestro) + 50% (taptools).
+    pcc_prices_providers_weights:
+      - 50  # Maestro
+      - 50  # Taptools
+  # Configuration parameters for each prices provider
+  pc_prices_provider_cfgs:
+    - tag: MaestroPPC
+      contents:
+        # Maestro API key. Fetching prices from https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc endpoint requires a paid subscription.
+        mc_api_key: <<MAESTRO_TOKEN>>
+        # Maestro resolution
+        mc_resolution: 5m
+        mc_dex: minswap
+        # Alternative pair (for testing only).
+        mc_pair_override:
+          mpo_pair: "ADA-GENS"
+          mpo_commodity_is_first: false
+    - tag: TaptoolsPPC
+      contents:
+        # Taptools API key.
+        ttc_api_key: <<TAPTOOLS_TOKEN>>
+        # Taptools resolution
+        ttc_resolution: 5m
+        # Alternative asset with precision (for testing only).
+        ttc_pair_override:
+          ttpo_asset: dda5fdb1002f7389b33e036b6afee82a8189becb6cba852e8b79b4fb.0014df1047454e53  # example: GENS
+          ttpo_precision: 6
 # Please see description following this sample for details regarding `mbc_strategy_config` field.
 mbc_strategy_config:
   sc_spread:

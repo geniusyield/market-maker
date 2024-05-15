@@ -5,7 +5,7 @@
 mbc_user:
   # Either load wallet from signing key generated using `cardano-cli` (normal or extended).
   ur_s_key_path: path-to-skey
-  # Load the wallet from mnemonic seed phrase.
+  # Or load the wallet from mnemonic seed phrase.
   ur_mnemonic:
     mnemonic:
       - health
@@ -92,10 +92,10 @@ mbc_strategy_config:
     # denominator: 100
     # To specify same spread for both sell and buy side. Or can individually specify for each like done below.
     sell_side_spread:
-      numerator: 1
+      numerator: 2
       denominator: 100
     buy_side_spread:
-      numerator: 2
+      numerator: 1
       denominator: 100
   sc_token_volume:
     tv_sell_min_vol: 1000000000

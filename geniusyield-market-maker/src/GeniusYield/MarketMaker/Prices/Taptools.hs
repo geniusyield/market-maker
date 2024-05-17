@@ -16,6 +16,7 @@ import           Network.HTTP.Client              (HttpException(..), Manager, M
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import           Servant.API
 import           Servant.Client
+import qualified Servant.Client.Core              as Servant
 
 
 -- | Taptools time resolution for OHLC Candles
@@ -40,7 +41,7 @@ instance ToHttpApiData TtResolution where
     TtRes1w  -> "1w"
     TtRes1M  -> "1M"
 
-newtype TtUnit = TtUnit {unTtUnit ∷ GYAssetClass}
+newtype TtUnit = TtUnit {unTtUnit :: GYAssetClass}
   deriving stock (Eq, Ord, Show)
 
 instance ToHttpApiData TtUnit where
@@ -74,16 +75,19 @@ data TaptoolsPriceException
 
 instance Exception TaptoolsPriceException where
   displayException (TaptoolsError msg) = "Taptools Error: " ++ unpack msg
-  displayException (TaptoolsClientError err) = "Taptools Client Error: " ++ displayException (sanitizeClientFail err)
+  displayException (TaptoolsClientError err) = "Taptools Client Error: " ++ displayException (sanitizeClientError err)
 
-sanitizeClientFail :: ClientError -> ClientError
-sanitizeClientFail (ConnectionError se) = 
-  ConnectionError $ case fromException se of
+sanitizeClientError :: ClientError -> ClientError
+sanitizeClientError err = case err of
+  FailureResponse reqF res -> FailureResponse reqF { Servant.requestHeaders = hideHeader <$> Servant.requestHeaders reqF } res
+  ConnectionError se       -> ConnectionError $ case fromException se of
     Just (HttpExceptionRequest req content) ->
-      let req' = req { requestHeaders = map (\(h, v) -> if h == "x-api-key" then (h, "hidden") else (h, v)) (requestHeaders req) }
+      let req' = req { requestHeaders = map hideHeader (requestHeaders req) }
       in  toException (HttpExceptionRequest req' content)
-    _                                       -> se
-sanitizeClientFail anyOtherFailure    = anyOtherFailure
+    _anyOther                               -> se
+  _anyOther                -> err
+  where
+    hideHeader (h, v) = if h == "x-api-key" then (h, "hidden") else (h, v)
 
 api :: Proxy TtAPI
 api = Proxy

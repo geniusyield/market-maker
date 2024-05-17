@@ -147,6 +147,7 @@ library geniusyield-market-maker-lib
     , geniusyield-orderbot-framework:common
     , ghc-typelits-knownnat
     , maestro-sdk
+    , servant-client-core
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
 
@@ -167,6 +168,7 @@ executable geniusyield-market-maker-exe
     , geniusyield-orderbot-framework:common
     , ghc-typelits-knownnat
     , maestro-sdk
+    , servant-client-core
   hs-source-dirs:   .
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
@@ -191,6 +193,7 @@ test-suite pproviders-status-sequence
                   , geniusyield-orderbot-framework:common
                   , ghc-typelits-knownnat
                   , maestro-sdk
+                  , servant-client-core
                   , tasty
                   , tasty-hunit
   mixins:

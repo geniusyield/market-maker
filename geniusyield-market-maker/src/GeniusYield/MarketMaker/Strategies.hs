@@ -17,7 +17,6 @@ module GeniusYield.MarketMaker.Strategies
   ) where
 
 import           Control.Applicative                       ((<|>))
-import           Control.Exception                         (displayException)
 import           Control.Monad                             (unless)
 import           Data.Aeson                                (FromJSON (..))
 import           Data.Foldable
@@ -432,8 +431,3 @@ orderIsToBeRemoved mPrice _cancelLimitSpread@Spread {..} (mmtp, poi) =
 
 flip4 ∷ (a → b → c → d → r) → (b → c → d → a → r)
 flip4 f = \b c d a → f a b c d
-
-logPricesProviderFail ∷ GYProviders → [PricesProviderException] → [String] → IO ()
-logPricesProviderFail providers es pps = do
-  gyLogWarning providers logNS $ "Some prices provider(s) failed: " ++ (show pps)
-  mapM_ (gyLogWarning providers logNS . displayException) es

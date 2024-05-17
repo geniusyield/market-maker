@@ -1,17 +1,18 @@
 module GeniusYield.MarketMaker.Prices.Taptools where
 
-import           Control.Exception                (Exception (..))
+import           Control.Exception                (Exception (..), displayException, fromException, toException)
 import           Data.Aeson
 import           Deriving.Aeson
 import           Data.Proxy
-import           Data.Text                        (Text)
+import           Data.Text                        (Text, unpack)
 import qualified Data.Text                        as Text
 import           Data.Text.Encoding               (encodeUtf8)
 import           Data.Time.Clock.POSIX            (POSIXTime)
 import           Data.Word                        (Word8)
 import           GeniusYield.GYConfig             (Confidential (..))
 import           GeniusYield.Types                (GYAssetClass)
-import           Network.HTTP.Client              (newManager, Manager, ManagerSettings(..), Request(..))
+import           Network.HTTP.Client              (HttpException(..), Manager, ManagerSettings(..), Request(..),
+                                                   newManager, requestHeaders)
 import           Network.HTTP.Client.TLS          (tlsManagerSettings)
 import           Servant.API
 import           Servant.Client
@@ -70,7 +71,19 @@ data TaptoolsPriceException
   = TaptoolsError !Text               -- ^ Other taptools error.
   | TaptoolsClientError !ClientError  -- ^ Servant client error while querying taptools.
   deriving stock (Eq, Show)
-  deriving anyclass Exception
+
+instance Exception TaptoolsPriceException where
+  displayException (TaptoolsError msg) = "Taptools Error: " ++ unpack msg
+  displayException (TaptoolsClientError err) = "Taptools Client Error: " ++ displayException (sanitizeClientFail err)
+
+sanitizeClientFail :: ClientError -> ClientError
+sanitizeClientFail (ConnectionError se) = 
+  ConnectionError $ case fromException se of
+    Just (HttpExceptionRequest req content) ->
+      let req' = req { requestHeaders = map (\(h, v) -> if h == "x-api-key" then (h, "hidden") else (h, v)) (requestHeaders req) }
+      in  toException (HttpExceptionRequest req' content)
+    _                                       -> se
+sanitizeClientFail anyOtherFailure    = anyOtherFailure
 
 api :: Proxy TtAPI
 api = Proxy

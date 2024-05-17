@@ -5,7 +5,7 @@ module GeniusYield.MarketMaker.Prices where
 import           Control.Applicative                       ((<|>))
 import           Control.Arrow                             (Arrow (first), (&&&))
 import           Control.Concurrent.MVar
-import           Control.Exception                         (Exception, throwIO, try, catch)
+import           Control.Exception                         (Exception, throwIO, try, catch, displayException)
 import           Control.Monad                             ((<=<))
 import           Data.Aeson                                (parseJSON)
 import           Data.ByteString.Char8                     (unpack)
@@ -25,6 +25,7 @@ import           Deriving.Aeson
 import           GeniusYield.Api.Dex.Constants             (DEXInfo (..))
 import           GeniusYield.GYConfig
 import           GeniusYield.Imports                       (Proxy, when)
+import           GeniusYield.MarketMaker.Constants         (logNS)
 import           GeniusYield.MarketMaker.Prices.Taptools
 import           GeniusYield.MarketMaker.Spread            (Spread (..))
 import           GeniusYield.MarketMaker.Utils
@@ -103,9 +104,9 @@ data MaestroConfig = MaestroConfig
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroConfig
 
 data TaptoolsConfig = TaptoolsConfig
-  { ttcApiKey             ∷ !(Confidential Text),
-    ttcResolution ∷ !TtResolution,
-    ttcPairOverride       ∷ !(Maybe TaptoolsPairOverride)
+  { ttcApiKey       ∷ !(Confidential Text),
+    ttcResolution   ∷ !TtResolution,
+    ttcPairOverride ∷ !(Maybe TaptoolsPairOverride)
   }
   deriving stock (Show, Generic)
   deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsConfig
@@ -153,8 +154,8 @@ data MaestroPairOverride = MaestroPairOverride
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroPairOverride
 
 data TaptoolsPairOverride = TaptoolsPairOverride
-  { ttpoAsset            ∷ !GYAssetClass,
-    ttpoPrecision        ∷ !Natural
+  { ttpoAsset     ∷ !GYAssetClass,
+    ttpoPrecision ∷ !Natural
   }
   deriving stock (Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsPairOverride
@@ -539,7 +540,11 @@ data PricesProviderException
   | PPTaptoolsErr TaptoolsPriceException
   | PPMockErr MockPriceException
   deriving stock Show
-  deriving anyclass Exception
+
+instance Exception PricesProviderException where
+  displayException (PPMaestroErr err)  = "Maestro fail: " ++ displayException err
+  displayException (PPTaptoolsErr err) = "Taptools fail: " ++ displayException err
+  displayException (PPMockErr err)     = "Mock fail: " ++ displayException err
 
 -- | Remove headers (if `MaestroError` contains `ClientError`).
 silenceHeadersMaestroClientError ∷ MaestroError → MaestroError
@@ -557,3 +562,8 @@ handleMaestroError locationInfo = either (throwMspvApiError locationInfo) pure
 -- | Utility function to return a `SourceError` if a `MaestroPriceException` is thrown.
 handleMaestroSourceFail ∷ MaestroPriceException → IO (Either SourceError a)
 handleMaestroSourceFail mpe = pure . Left $ SourceUnavailable (PPMaestroErr mpe) "Maestro"
+
+logPricesProviderFail ∷ GYProviders → [PricesProviderException] → [String] → IO ()
+logPricesProviderFail providers es pps = do
+  gyLogWarning providers logNS $ "Some prices provider(s) failed: " ++ (show pps)
+  mapM_ (gyLogWarning providers logNS . displayException) es

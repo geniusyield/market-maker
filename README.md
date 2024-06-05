@@ -92,7 +92,7 @@ Genius Yield Market Maker: <MARKET MAKER ADDRESS>
 ```
 
 Maestro API keys are available after registration via the following link:
- - https://docs.gomaestro.org/Getting-started/Sign-up-login
+ - https://docs.gomaestro.org/Home/Getting-started/Sign-up-login
 
 > [!WARNING]
 > Please make sure to adapt the `MARKET_MAKER_CONFIG` configuration according to your needs! Please see the docker-compose.yml file for further details. For the configuration of the Market Maker, please see the [Configuration Settings](#Configuration) chapter.
@@ -136,7 +136,7 @@ Note that two prices providers are supported:  *Maestro* and *Taptools*.  It is 
 
   * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
-* `mbc_price_config` gives the configuration on how to get market price using [Maestro](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc) or [Taptools](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get) endpoints, for a token.
+* `mbc_price_config` gives the configuration on how to get market price using [Maestro](https://docs.gomaestro.org/Cardano/DefiMarketAPI/mkt-dex-ohlc) or [Taptools](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get) endpoints, for a token.
   * `pc_price_common_cfg` contains the configuration parameters common to both prices providers.
     * `pcc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
     * `pcc_price_diff_threshold1` if the *relative standard deviation*[^relstddev] among the prices providers is above this parameter, automatic cancelation of open orders is triggered (without raising logs' severity to "warning").
@@ -149,7 +149,7 @@ Note that two prices providers are supported:  *Maestro* and *Taptools*.  It is 
 
   * Maestro:
     * `mc_api_key` is the Maestro API key.
-    * `mc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/DefiMarketAPI/mkt-dex-ohlc). We take the closing price of the latest resolution window.
+    * `mc_resolution` is the resolution for the mentioned Maestro endpoint. Please see documentation [here](https://docs.gomaestro.org/Cardano/DefiMarketAPI/Introduction#prices) on how resolution helps determine price. Possible values of resolution can be seen [here](https://docs.gomaestro.org/Cardano/DefiMarketAPI/mkt-dex-ohlc). We take the closing price of the latest resolution window.
     * `mc_dex` determines DEX from which market price is queried for. Currently `minswap` & `genius-yield` are supported. Caution must be exercised in setting this value. We use the closing price from Maestro's OHLC endpoint and a price feed from AMM dex is less susceptible to price alterations as trades cannot happen at an arbitrary price.
     > [!CAUTION]
     > Please make sure to use `minswap` for the `pc_dex` configuration setting. Using an AMM based DEX as price oracle helps to combat malicious price manipulation.

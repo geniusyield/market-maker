@@ -108,6 +108,7 @@ library datasource-providers
     , geniusyield-orderbot-framework:common
 
   exposed-modules: GeniusYield.OrderBot.DataSource.Providers
+  visibility: public
 
 library orderbook-annset
   import:          common-lang
@@ -120,6 +121,7 @@ library orderbook-annset
     , geniusyield-orderbot-framework:{common, datasource}
 
   exposed-modules: GeniusYield.OrderBot.OrderBook.AnnSet
+  visibility: public
 
 library geniusyield-market-maker-lib
   import:           common-lang
@@ -150,6 +152,7 @@ library geniusyield-market-maker-lib
     , servant-client-core
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
+  visibility: public
 
 -- Build targets
 

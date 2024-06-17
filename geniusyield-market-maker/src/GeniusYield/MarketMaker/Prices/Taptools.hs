@@ -21,13 +21,14 @@ import qualified Servant.Client.Core              as Servant
 
 -- | Taptools time resolution for OHLC Candles
 data TtResolution =
-    TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h | TtRes4h | TtRes12h
+    TtRes1m | TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h | TtRes4h | TtRes12h
   | TtRes1d | TtRes3d | TtRes1w  | TtRes1M
   deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON) via CustomJSON '[ConstructorTagModifier '[StripPrefix "TtRes"]] TtResolution
 
 instance ToHttpApiData TtResolution where
   toQueryParam ttres = case ttres of
+    TtRes1m  -> "1m"
     TtRes3m  -> "3m"
     TtRes5m  -> "5m"
     TtRes15m -> "15m"

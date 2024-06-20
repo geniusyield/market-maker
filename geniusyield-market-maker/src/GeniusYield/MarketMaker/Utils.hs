@@ -44,7 +44,7 @@ weightedMean :: Fractional a => NonEmpty (a,a) -> a
 weightedMean wxs = numerator / denominator
   where
     sum'        = sum . NE.toList
-    numerator   = sum' $ (\(w, x) -> w * x) <$> wxs
+    numerator   = sum' $ uncurry (*) <$> wxs
     denominator = sum' $ fst <$> wxs
 
 relStdDev :: NonEmpty Double -> Double

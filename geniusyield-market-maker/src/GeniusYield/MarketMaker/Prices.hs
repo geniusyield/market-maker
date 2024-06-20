@@ -3,11 +3,14 @@
 module GeniusYield.MarketMaker.Prices where
 
 import           Control.Applicative                       ((<|>))
-import           Control.Arrow                             (Arrow (first), (&&&))
+import           Control.Arrow                             (Arrow (first),
+                                                            (&&&))
 import           Control.Concurrent.MVar
-import           Control.Exception                         (Exception, throwIO, try, catch, displayException)
+import           Control.Exception                         (Exception,
+                                                            displayException,
+                                                            throwIO, try, handle)
 import           Control.Monad                             ((<=<))
-import           Data.Aeson                                (parseJSON)
+import           Data.Aeson                                (parseJSON, ToJSON (..))
 import           Data.ByteString.Char8                     (unpack)
 import           Data.Coerce                               (coerce)
 import           Data.Either                               (fromRight, lefts)
@@ -15,10 +18,10 @@ import           Data.Fixed                                (Fixed (..),
                                                             showFixed)
 import           Data.Function                             ((&))
 import           Data.List                                 (find)
-import           Data.List.NonEmpty                        (NonEmpty(..))
+import           Data.List.NonEmpty                        (NonEmpty (..))
 import qualified Data.List.NonEmpty                        as NE
 import qualified Data.Map.Strict                           as M
-import           Data.Maybe                                (fromJust, catMaybes)
+import           Data.Maybe                                (catMaybes, fromJust)
 import           Data.Ratio                                ((%))
 import           Data.Text                                 (Text, pack)
 import           Deriving.Aeson
@@ -39,7 +42,8 @@ import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
                                                             volumeLTPrice)
 import           GeniusYield.OrderBot.Types                (OrderAssetPair (..),
                                                             OrderType (..),
-                                                            Price (..), Volume (..))
+                                                            Price (..),
+                                                            Volume (..))
 import           GeniusYield.Providers.Common              (silenceHeadersClientError)
 import           GeniusYield.Providers.Maestro
 import           GeniusYield.Types
@@ -62,7 +66,9 @@ import           Servant.Client                            (ClientEnv)
 -------------------------------------------------------------------------------
 -- Configuration
 -------------------------------------------------------------------------------
- 
+
+deriving newtype instance (ToJSON a) => ToJSON (Confidential a)
+
 -- | PriceConfigV1 is deprecated
 data PriceConfigV1 = PriceConfigV1
   { pcApiKey     ∷ !(Confidential Text),
@@ -72,14 +78,14 @@ data PriceConfigV1 = PriceConfigV1
     pcOverride   ∷ !(Maybe MaestroPairOverride)
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV1
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV1
 
 data PriceConfigV2 = PriceConfigV2
   { pcPriceCommonCfg     ∷ !PriceCommonCfg,
     pcPricesProviderCfgs ∷ !(NonEmpty PricesProviderCfg)
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceConfigV2
 
 data PriceCommonCfg = PriceCommonCfg
   { pccNetworkId              ∷ !GYNetworkId,
@@ -92,7 +98,7 @@ data PriceCommonCfg = PriceCommonCfg
     pccPricesProvidersWeights ∷ !(NonEmpty Int)   -- ^ Corresponding to each @PricesProviderCfg@
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PriceCommonCfg
 
 data MaestroConfig = MaestroConfig
   { mcApiKey       ∷ !(Confidential Text),
@@ -101,7 +107,7 @@ data MaestroConfig = MaestroConfig
     mcPairOverride ∷ !(Maybe MaestroPairOverride)
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroConfig
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MaestroConfig
 
 data TaptoolsConfig = TaptoolsConfig
   { ttcApiKey       ∷ !(Confidential Text),
@@ -109,24 +115,27 @@ data TaptoolsConfig = TaptoolsConfig
     ttcPairOverride ∷ !(Maybe TaptoolsPairOverride)
   }
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsConfig
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] TaptoolsConfig
 
 data MockConfig = MockConfig  -- For testing
   { mokcName ∷ !String }
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MockConfig
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] MockConfig
 
 data PricesProviderCfg =
     MaestroPPC MaestroConfig
   | TaptoolsPPC TaptoolsConfig
   | MockPPC MockConfig
   deriving stock (Show, Generic)
-  deriving (FromJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PricesProviderCfg
+  deriving (FromJSON, ToJSON) via CustomJSON '[FieldLabelModifier '[CamelToSnake]] PricesProviderCfg
 
 data PriceConfig = PCVersion1 PriceConfigV1 | PCVersion2 PriceConfigV2  deriving stock Show
 
 instance FromJSON PriceConfig where
   parseJSON v = (PCVersion1 <$> parseJSON v) <|> (PCVersion2 <$> parseJSON v)
+instance ToJSON PriceConfig where
+  toJSON (PCVersion1 v) = toJSON v
+  toJSON (PCVersion2 v) = toJSON v
 
 
 -------------------------------------------------------------------------------
@@ -207,7 +216,7 @@ buildPP c dex pc =
   ppAggregator = case pc of
     PCVersion1 (PriceConfigV1 {..}) → do
       env ← networkIdToMaestroEnv (coerce pcApiKey) pcNetworkId
-      
+
       let pccNetworkId    = pcNetworkId
           mppDex          = pcDex
           mppPairOverride = pcOverride
@@ -240,7 +249,7 @@ buildPP c dex pc =
       when (thresHold2 < thresHold1) $
         throwIO $ userError "Expected 'pccPriceDiffThreshold2 >= pccPriceDiffThreshold1'."
 
-      PPA <$> (pure pcPriceCommonCfg) <*> mapM ppBuilder pcPricesProviderCfgs
+      PPA pcPriceCommonCfg <$> mapM ppBuilder pcPricesProviderCfgs
 
       where
         ppBuilder ∷ PricesProviderCfg → IO PricesProviderBuilt
@@ -267,7 +276,7 @@ buildPP c dex pc =
               { mokppName  = mokcName mokc
               , mokppPrice = mokppPrice
               }
-  
+
 data PriceIndicator = PriceMismatch1 | PriceMismatch2 | PriceUnavailable | PriceSourceFail [PricesProviderException] [String] Price | PriceAverage Price
   deriving stock Show
 
@@ -280,7 +289,7 @@ newtype GetQuota = GetQuota { getQuota ∷ MMTokenPair → IO (Either SourceErro
 buildGetQuota ∷ PricesProviderBuilt → GetQuota
 
 buildGetQuota (MaestroPPB MaestroPP {..}) = GetQuota $ \mmtp → do
-  flip catch handleMaestroSourceFail $ do
+  handle handleMaestroSourceFail $ do
     (pairName, commodityIsA) ← case mppPairOverride of
       -- We have to override with given details.
       Just (MaestroPairOverride {..}) → do
@@ -342,7 +351,7 @@ buildGetQuota (MaestroPPB MaestroPP {..}) = GetQuota $ \mmtp → do
     functionLocationIdent = "getMaestroPrice"
 
 buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
-  commodity ∷ MMToken ← 
+  commodity ∷ MMToken ←
     case ttppPairOverride of
       Just ttpo → pure MMToken {mmtAc = ttpoAsset ttpo, mmtPrecision = ttpoPrecision ttpo}
       Nothing
@@ -370,7 +379,7 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
 
 buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
   mbPrice ← readMVar mokppPrice
-  
+
   case mbPrice of
     Nothing → return . Left $ SourceUnavailable (PPMockErr $ MockError "Mock prices provider exception.") mokppName
     Just p  → return . Right . Price . toRational $ p
@@ -391,15 +400,15 @@ priceEstimate pp mmtp = do
   let pproviders = NE.toList $ buildGetQuotas pp
       weights    = NE.toList $ buildWeights pp
 
-  eps ← mapM (\prov → getQuota prov mmtp) pproviders
-  
+  eps ← mapM (`getQuota` mmtp) pproviders
+
   let weightedPrices = catMaybes $ zipWith matchRight weights eps
 
   let lps                   = lefts eps
       hasSourceFailed       = not . null $ lps
       unavailableExceptions = map (\(SourceUnavailable e _) → e) lps
       unavailablePProviders = map (\(SourceUnavailable _ pprovider) → pprovider) lps
-   
+
   case weightedPrices of
     []  → return PriceUnavailable
     wps → do
@@ -565,5 +574,5 @@ handleMaestroSourceFail mpe = pure . Left $ SourceUnavailable (PPMaestroErr mpe)
 
 logPricesProviderFail ∷ GYProviders → [PricesProviderException] → [String] → IO ()
 logPricesProviderFail providers es pps = do
-  gyLogWarning providers logNS $ "Some prices provider(s) failed: " ++ (show pps)
+  gyLogWarning providers logNS $ "Some prices provider(s) failed: " ++ show pps
   mapM_ (gyLogWarning providers logNS . displayException) es

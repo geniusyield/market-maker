@@ -221,7 +221,7 @@ fixedSpreadVsMarketPriceStrategy
 
     flip4 withPriceEstimate pp user mmToken $ \mp → do
       logInfo providers $ logMarketInfo mp
-      
+
       (bp, maob) ← getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold
 
       ownUtxos ← runGYTxQueryMonadNode nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
@@ -247,7 +247,7 @@ fixedSpreadVsMarketPriceStrategy
 
           relevantMMTP = mkMMTokenPair mmtLovelace mmToken
           mtInfo = M.lookup relevantMMTP bp
-     
+
           ownRemainingOrders = allOwnOrders \\ ordersToCancel
           lockedLovelaces = getOrdersLockedValue relevantMMTP mmtLovelace ownRemainingOrders
           lockedTokens = getOrdersLockedValue relevantMMTP mmToken ownRemainingOrders
@@ -277,7 +277,7 @@ fixedSpreadVsMarketPriceStrategy
             subtractTillZero val sub acc = if val `valueGreaterOrEqual` sub then subtractTillZero (val `valueMinus` sub) sub (acc + 1) else acc
         -- TODO: To subtract from `buyVol` pertaining to order cancellations? Likewise for `sellVol`.
         -- TODO: Abstract out both buy order actions & sell order actions to a single function.
-        (newBuyOrders, equityInWalletAfterBuyOrds) ← 
+        (newBuyOrders, equityInWalletAfterBuyOrds) ←
           if tvBuyVolThreshold <= fromIntegral buyVol || numNewBuyOrders == 0
             then pure ([], equityInWalletAfterCancelActions)
             else do
@@ -302,7 +302,7 @@ fixedSpreadVsMarketPriceStrategy
                   equityInWalletAfterBuyOrds
                 )
 
-        newSellOrders ← 
+        newSellOrders ←
           if tvSellVolThreshold <= fromIntegral sellVol || numNewSellOrders == 0
             then pure []
             else do
@@ -354,7 +354,7 @@ fixedSpreadVsMarketPriceStrategy
       buildNewUserOrders _delta@Spread {..} (ask, off) p tokenQ nOrders toInverse =
         let p' = getPrice p
             poi n =
-              let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then -1 * buySideSpread else sellSideSpread)) * p'
+              let newMPrice = (1 + (1 + 0.5 * toRational n) * (if toInverse then-1 * buySideSpread else sellSideSpread)) * p'
                in PlaceOrderAction
                     { poaOfferedAsset = mmtAc off,
                       poaOfferedAmount = naturalFromInteger $ fromIntegral tokenQ,
@@ -430,4 +430,4 @@ orderIsToBeRemoved mPrice _cancelLimitSpread@Spread {..} (mmtp, poi) =
         SomeOrderInfo OrderInfo {orderType = SSellOrder, price} → getPrice price > marketPrice + (sellSideSpread * marketPrice)
 
 flip4 ∷ (a → b → c → d → r) → (b → c → d → a → r)
-flip4 f = \b c d a → f a b c d
+flip4 f b c d a = f a b c d

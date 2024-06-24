@@ -1,46 +1,25 @@
 module GeniusYield.MarketMaker.Prices.Taptools where
 
-import           Control.Exception                (Exception (..), displayException, fromException, toException)
+import           Control.Exception       (Exception (..), displayException,
+                                          fromException, toException)
 import           Data.Aeson
-import           Deriving.Aeson
+import qualified Data.Aeson              as Aeson
+import qualified Data.Aeson.Types        as Aeson
+import           Data.Bifunctor          (Bifunctor (bimap))
+import qualified Data.Map.Strict         as Map
 import           Data.Proxy
-import           Data.Text                        (Text, unpack)
-import qualified Data.Text                        as Text
-import           Data.Text.Encoding               (encodeUtf8)
-import           Data.Time.Clock.POSIX            (POSIXTime)
-import           Data.Word                        (Word8)
-import           GeniusYield.GYConfig             (Confidential (..))
-import           GeniusYield.Types                (GYAssetClass)
-import           Network.HTTP.Client              (HttpException(..), Manager, ManagerSettings(..), Request(..),
-                                                   newManager, requestHeaders)
-import           Network.HTTP.Client.TLS          (tlsManagerSettings)
+import           Data.Text               (Text, unpack)
+import qualified Data.Text               as Text
+import           Data.Text.Encoding      (encodeUtf8)
+import           GeniusYield.GYConfig    (Confidential (..))
+import           GeniusYield.Types       (GYAssetClass, makeAssetClass)
+import           Network.HTTP.Client     (HttpException (..), Manager,
+                                          ManagerSettings (..), Request (..),
+                                          newManager, requestHeaders)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Servant.API
 import           Servant.Client
-import qualified Servant.Client.Core              as Servant
-
-
--- | Taptools time resolution for OHLC Candles
-data TtResolution =
-    TtRes1m | TtRes3m | TtRes5m | TtRes15m | TtRes30m | TtRes1h | TtRes2h | TtRes4h | TtRes12h
-  | TtRes1d | TtRes3d | TtRes1w  | TtRes1M
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving (FromJSON, ToJSON) via CustomJSON '[ConstructorTagModifier '[StripPrefix "TtRes"]] TtResolution
-
-instance ToHttpApiData TtResolution where
-  toQueryParam ttres = case ttres of
-    TtRes1m  -> "1m"
-    TtRes3m  -> "3m"
-    TtRes5m  -> "5m"
-    TtRes15m -> "15m"
-    TtRes30m -> "30m"
-    TtRes1h  -> "1h"
-    TtRes2h  -> "2h"
-    TtRes4h  -> "4h"
-    TtRes12h -> "12h"
-    TtRes1d  -> "1d"
-    TtRes3d  -> "3d"
-    TtRes1w  -> "1w"
-    TtRes1M  -> "1M"
+import qualified Servant.Client.Core     as Servant
 
 newtype TtUnit = TtUnit {unTtUnit :: GYAssetClass}
   deriving stock (Eq, Ord, Show)
@@ -50,24 +29,29 @@ instance ToHttpApiData TtUnit where
     where
       removeDot = Text.filter (/= '.')
 
-type TtNumCandles = Word8
+instance Aeson.ToJSON TtUnit where
+  toJSON = Aeson.toJSON . toUrlPiece
+
+instance Aeson.ToJSONKey TtUnit where
+    toJSONKey = Aeson.toJSONKeyText toUrlPiece
+
+instance FromHttpApiData TtUnit where
+  parseUrlPiece t =
+    let (pid, tn) = Text.splitAt 56 t
+    in bimap Text.pack TtUnit $ makeAssetClass pid tn
+
+instance Aeson.FromJSON TtUnit where
+  parseJSON = Aeson.withText "TtUnit" $ \t -> case parseUrlPiece t of
+    Left e    -> fail $ show e
+    Right ttu -> pure ttu
+
+instance Aeson.FromJSONKey TtUnit where
+    fromJSONKey = Aeson.FromJSONKeyTextParser (either (fail . show) pure . parseUrlPiece)
+
+type PricesResponse = Map.Map TtUnit Double
 
 type TtAPI =
-  "token" :> "ohlcv" :> QueryParam "unit" TtUnit
-                     :> QueryParam' '[Required, Strict] "interval" TtResolution
-                     :> QueryParam "numIntervals" TtNumCandles
-                     :> Get '[JSON] [TtOHLCV]
-
-data TtOHLCV = TtOHLCV
-  { close  :: !Double
-  , high   :: !Double
-  , low    :: !Double
-  , open   :: !Double
-  , time   :: !POSIXTime
-  , volume :: !Double
-  } deriving stock (Show, Generic)
-
-instance FromJSON TtOHLCV
+  "token" :> "prices" :> ReqBody '[JSON] [TtUnit] :> Post '[JSON] PricesResponse
 
 data TaptoolsPriceException
   = TaptoolsError !Text               -- ^ Other taptools error.
@@ -93,8 +77,8 @@ sanitizeClientError err = case err of
 api :: Proxy TtAPI
 api = Proxy
 
-getTtOHLCV :: Maybe TtUnit -> TtResolution -> Maybe Word8 -> ClientM [TtOHLCV]
-getTtOHLCV = client api
+getTtPrice :: [TtUnit] -> ClientM PricesResponse
+getTtPrice = client api
 
 taptoolsManager :: Confidential Text -> IO Manager
 taptoolsManager apiKey = newManager $ tlsManagerSettings { managerModifyRequest = withHeaders }
@@ -115,5 +99,5 @@ taptoolsEnv apiKey = do
 taptoolsBaseUrl :: BaseUrl
 taptoolsBaseUrl = BaseUrl Https "openapi.taptools.io" 443 "api/v1"
 
-priceFromTaptools :: TtUnit -> TtResolution -> TtNumCandles -> ClientEnv -> IO (Either ClientError [TtOHLCV])
-priceFromTaptools unit resolution numIntervals = runClientM (getTtOHLCV (Just unit) resolution  (Just numIntervals))
+priceFromTaptools :: TtUnit -> ClientEnv -> IO (Either ClientError PricesResponse)
+priceFromTaptools unit = runClientM (getTtPrice [unit])

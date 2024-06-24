@@ -52,6 +52,7 @@ import           GHC.TypeNats                              (SomeNat (SomeNat),
                                                             someNatVal)
 import           Maestro.Client.V1
 import           Maestro.Types.V1                          as Maestro
+import           Servant.API                               (ToHttpApiData(toUrlPiece))
 import           Servant.Client                            (ClientEnv)
 
 
@@ -67,6 +68,7 @@ import           Servant.Client                            (ClientEnv)
 -- Configuration
 -------------------------------------------------------------------------------
 
+-- TODO: https://github.com/geniusyield/market-maker/issues/86.
 deriving newtype instance (ToJSON a) => ToJSON (Confidential a)
 
 -- | PriceConfigV1 is deprecated
@@ -111,7 +113,6 @@ data MaestroConfig = MaestroConfig
 
 data TaptoolsConfig = TaptoolsConfig
   { ttcApiKey       ∷ !(Confidential Text),
-    ttcResolution   ∷ !TtResolution,
     ttcPairOverride ∷ !(Maybe TaptoolsPairOverride)
   }
   deriving stock (Show, Generic)
@@ -178,7 +179,6 @@ data MaestroPP = MaestroPP
 
 data TaptoolsPP = TaptoolsPP
   { ttppEnv          ∷ !ClientEnv,
-    ttppResolution   ∷ !TtResolution,
     ttppPairOverride ∷ !(Maybe TaptoolsPairOverride)
   }
 
@@ -267,7 +267,6 @@ buildPP c dex pc =
             env ← taptoolsEnv $ ttcApiKey tc
             return $ TaptoolsPPB TaptoolsPP
               { ttppEnv          = env
-              , ttppResolution   = ttcResolution tc
               , ttppPairOverride = ttcPairOverride tc
               }
           MockPPC mokc   → do
@@ -366,16 +365,16 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
     MMToken { mmtAc = gyt@(GYToken {}), mmtPrecision = precision } → do
       let unit = TtUnit gyt
 
-      ohlcvInfo ← priceFromTaptools unit ttppResolution 1 ttppEnv
+      priceInfo ← priceFromTaptools unit ttppEnv
 
-      case ohlcvInfo of
+      case priceInfo of
         Left e   → return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsClientError e) "Taptools"
-        Right [] → return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsError "Empty OHLCV.") "Taptools"
-        Right (ttOHLCV : _) → do
-          let price         = close ttOHLCV
-              precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
-              adjustedPrice = price * precisionDiff
-          return . Right . Price . toRational $ adjustedPrice
+        Right ttpm → case M.lookup unit ttpm of
+          Nothing -> return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsError $ "Price not found for given unit: " <> toUrlPiece unit) "Taptools"
+          Just price -> do
+            let precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
+                adjustedPrice = price * precisionDiff
+            return . Right . Price . toRational $ adjustedPrice
 
 buildGetQuota (MockPPB MockPP {..}) = GetQuota $ \_ → do
   mbPrice ← readMVar mokppPrice

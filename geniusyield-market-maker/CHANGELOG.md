@@ -1,5 +1,10 @@
 # Revision history for geniusyield-market-maker
 
+## 0.6.0 -- 2024-06-24
+
+* Utilise [`/token/prices`](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1prices/post) api endpoint instead of [`/token/ohlcv`](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get) for TapTools price provider.
+* Internal code refactoring to facilitate importing this library.
+
 ## 0.5.0 -- 2024-05-14
 
 * Added support for having Taptools as a second prices provider.

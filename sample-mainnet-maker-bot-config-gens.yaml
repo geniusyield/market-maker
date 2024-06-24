@@ -74,8 +74,6 @@ mbc_price_config:
       contents:
         # Taptools API key.
         ttc_api_key: <<TAPTOOLS_TOKEN>>
-        # Taptools resolution
-        ttc_resolution: 5m
 # Please see description following this sample for details regarding `mbc_strategy_config` field.
 mbc_strategy_config:
   sc_spread:

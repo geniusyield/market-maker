@@ -136,7 +136,7 @@ Note that two prices providers are supported:  *Maestro* and *Taptools*.  It is 
 
   * `ur_coll` (optional) is the UTxO to be reserved as collateral. Though specifying `ur_coll` is optional but it is advised to set it as then this UTxO would be reserved (i.e., would not be spent) and thus be always available to serve as collateral. It is preferred for `ur_coll` to be pure 5 ADA only UTxO (i.e., no other tokens besides ADA).
 * `mbc_delay` - Bot in single iteration tries to determine which orders need to be placed and which are needed to be cancelled. Once determined, it tries building the transactions and proceeds with submitting them, completing this single iteration. `mbc_delay` determines time in microseconds that bot must wait before proceeding with next iteration.
-* `mbc_price_config` gives the configuration on how to get market price using [Maestro](https://docs.gomaestro.org/Cardano/DefiMarketAPI/mkt-dex-ohlc) or [Taptools](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get) endpoints, for a token.
+* `mbc_price_config` gives the configuration on how to get market price using [Maestro](https://docs.gomaestro.org/Cardano/DefiMarketAPI/mkt-dex-ohlc) or [Taptools](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1prices/post) endpoints, for a token.
   * `pc_price_common_cfg` contains the configuration parameters common to both prices providers.
     * `pcc_network_id` determines Cardano network which is mentioned for in API calls. It should always be kept `mainnet` as of now.
     * `pcc_price_diff_threshold1` if the *relative standard deviation*[^relstddev] among the prices providers is above this parameter, automatic cancelation of open orders is triggered (without raising logs' severity to "warning").
@@ -158,7 +158,6 @@ Note that two prices providers are supported:  *Maestro* and *Taptools*.  It is 
 
   * Taptools:
     * `ttc_api_key` is the Taptools API key.
-    * `ttc_resolution` is the resolution for the mentioned Taptools endpoint.  Possible values of resolution can be seen [here](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get).
     * `ttc_pair_override` plays the same role as `mc_pair_override` described above, but for Taptools.  Note that asset class is set with `ttpo_asset` and its precison (number of decimals) with `ttpo_precision`.
 
 * `mbc_strategy_config` determines parameters for strategy:

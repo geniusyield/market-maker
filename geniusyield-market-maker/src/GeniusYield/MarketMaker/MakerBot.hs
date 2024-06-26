@@ -40,7 +40,7 @@ data MBFret = MBReady | MBSpooked1
                         }
                       | MBSpooked2
                         { mbs2Relax ∷ !Int }
-                          
+
 
 -----------------------------------------------------------------------
 ---------------------------- ACTIONS ----------------------------------
@@ -62,7 +62,7 @@ cancelAllOrders' MakerBot {mbUser} netId providers di = do
           else do
             let (batch, rest) = splitAt 6 partialOrderInfos
                 userAddr = addrUser netId mbUser
-            txBody ← 
+            txBody ←
               runGYTxMonadNode netId providers [userAddr] userAddr (uColl mbUser)
                 $ runReaderT (cancelMultiplePartialOrders' (dexPORefs di) batch) di
             let signedTx =
@@ -90,7 +90,7 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
 
   forM_ placeActions $ \pa@PlaceOrderAction {..} → do
     logInfo $ "Building for place action: " <> show pa
-    txBody ← 
+    txBody ←
       runGYTxMonadNode netId providers [userAddr] userAddr uColl
         $ flip runReaderT di
         $ placePartialOrder
@@ -173,62 +173,60 @@ mbStateMachine runStrategy mb@MakerBot {mbUser, mbDelay, mbToken} netId provider
 
     MBSpooked1 {..} → do
       if mbs1Relax >= pccAfterExitRelaxAim1 cfg then do
-           lift $ gyLogInfo providers logNS $ "[MBSpooked1] Resuming strategy"
+           lift $ gyLogInfo providers logNS "[MBSpooked1] Resuming strategy"
            put MBReady
          else if mbs1Worse >= pccAfterExitWorseMax1 cfg
                  then do
-                   lift $ gyLogWarning providers logNS $ "[MBSpooked1] Price mismatch among providers lasting a long time!"
+                   lift $ gyLogWarning providers logNS "[MBSpooked1] Price mismatch among providers lasting a long time!"
                    put MBSpooked2 { mbs2Relax = 0 }
                  else do
                    pe ← lift $ priceEstimate' pp mbToken
 
                    case pe of
                      PriceMismatch1           → do
-                       lift $ gyLogInfo providers logNS $ "[MBSpooked1] Price mismatch persists"
+                       lift $ gyLogInfo providers logNS "[MBSpooked1] Price mismatch persists"
                        put MBSpooked1 { mbs1Relax = 0, mbs1Worse = mbs1Worse + 1 }
 
                      PriceMismatch2           → do
-                       lift $ gyLogWarning providers logNS $ "[MBSpooked1] Outrageous price mismatch among providers!"
+                       lift $ gyLogWarning providers logNS "[MBSpooked1] Outrageous price mismatch among providers!"
                        put MBSpooked2 { mbs2Relax = 0 }
 
                      PriceUnavailable         → do
-                       lift $ gyLogWarning providers logNS $ "[MBSpooked1] All Prices Providers unavailable!"
+                       lift $ gyLogWarning providers logNS "[MBSpooked1] All Prices Providers unavailable!"
                        put MBSpooked2 { mbs2Relax = 0 }
 
-                     PriceSourceFail es pps _ → do
-                       lift $ logPricesProviderFail providers es pps
+                     PriceSourceFail es pps _ → lift $ logPricesProviderFail providers es pps
 
                      PriceAverage _           → do
-                       lift $ gyLogInfo providers logNS $ "[MBSpooked1] Apparent recovery of Prices Providers; waiting for observation period to elapse."
+                       lift $ gyLogInfo providers logNS "[MBSpooked1] Apparent recovery of Prices Providers; waiting for observation period to elapse."
                        put MBSpooked1 { mbs1Relax = mbs1Relax + 1, mbs1Worse = mbs1Worse }
 
                    lift $ threadDelay respiteDelay
 
     MBSpooked2 {..} → do
       if mbs2Relax >= pccAfterExitRelaxAim2 cfg then do
-           lift $ gyLogInfo providers logNS $ "[MBSpooked2] Resuming strategy"
+           lift $ gyLogInfo providers logNS "[MBSpooked2] Resuming strategy"
            put MBReady
          else do
            pe ← lift $ priceEstimate' pp mbToken
 
            case pe of
              PriceMismatch1           → do
-               lift $ gyLogWarning providers logNS $ "[MBSpooked2] Price mismatch persists"
+               lift $ gyLogWarning providers logNS "[MBSpooked2] Price mismatch persists"
                put MBSpooked2 { mbs2Relax = 0 }
 
              PriceMismatch2           → do
-               lift $ gyLogWarning providers logNS $ "[MBSpooked2] Outrageous price mismatch persists"
+               lift $ gyLogWarning providers logNS "[MBSpooked2] Outrageous price mismatch persists"
                put MBSpooked2 { mbs2Relax = 0 }
 
              PriceUnavailable         → do
-               lift $ gyLogWarning providers logNS $ "[MBSpooked2] All Prices Providers unavailable"
+               lift $ gyLogWarning providers logNS "[MBSpooked2] All Prices Providers unavailable"
                put MBSpooked2 { mbs2Relax = 0 }
 
-             PriceSourceFail es pps _ → do
-               lift $ logPricesProviderFail providers es pps
+             PriceSourceFail es pps _ → lift $ logPricesProviderFail providers es pps
 
              PriceAverage _           → do
-               lift $ gyLogInfo providers logNS $ "[MBSpooked2] Apparent recovery of Prices Providers; waiting for observation period to elapse."
+               lift $ gyLogInfo providers logNS "[MBSpooked2] Apparent recovery of Prices Providers; waiting for observation period to elapse."
                put MBSpooked2 { mbs2Relax = mbs2Relax + 1 }
 
            lift $ threadDelay respiteDelay
@@ -243,7 +241,7 @@ evolveStrategy
   → StateT MBFret IO ()
 evolveStrategy runStrategy mb netId providers pp di =
   forever $ mbStateMachine runStrategy mb netId providers pp di
-        
+
 executeStrategy
   ∷ Strategy
   → MakerBot

@@ -1,6 +1,6 @@
 cabal-version:   3.4
 name:            geniusyield-market-maker
-version:         0.5.0
+version:         0.6.0
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 synopsis:
@@ -102,24 +102,26 @@ library datasource-providers
   import:          common-lang
   import:          common-deps
   import:          common-ghc-opts
-  hs-source-dirs:  ../impl/datasource-providers
+  hs-source-dirs:  impl/datasource-providers
   build-depends:
     , geniusyield-dex-api
     , geniusyield-orderbot-framework:common
 
   exposed-modules: GeniusYield.OrderBot.DataSource.Providers
+  visibility: public
 
 library orderbook-annset
   import:          common-lang
   import:          common-deps
   import:          common-ghc-opts
-  hs-source-dirs:  ../impl/orderbook-annset
+  hs-source-dirs:  impl/orderbook-annset
   build-depends:
     , geniusyield-annset
     , geniusyield-dex-api
     , geniusyield-orderbot-framework:{common, datasource}
 
   exposed-modules: GeniusYield.OrderBot.OrderBook.AnnSet
+  visibility: public
 
 library geniusyield-market-maker-lib
   import:           common-lang
@@ -150,6 +152,7 @@ library geniusyield-market-maker-lib
     , servant-client-core
   mixins:
     geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
+  visibility: public
 
 -- Build targets
 

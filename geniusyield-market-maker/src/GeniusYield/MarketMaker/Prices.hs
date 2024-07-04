@@ -372,7 +372,7 @@ buildGetQuota (TaptoolsPPB TaptoolsPP {..}) = GetQuota $ \mmtp → do
         Right ttpm → case M.lookup unit ttpm of
           Nothing -> return . Left $ SourceUnavailable (PPTaptoolsErr $ TaptoolsError $ "Price not found for given unit: " <> toUrlPiece unit) "Taptools"
           Just price -> do
-            let precisionDiff = 10 ** fromIntegral (mmtPrecision mmtLovelace - precision)
+            let precisionDiff = 10 ** fromIntegral ((fromIntegral @Natural @Integer $ mmtPrecision mmtLovelace) - fromIntegral precision)
                 adjustedPrice = price * precisionDiff
             return . Right . Price . toRational $ adjustedPrice
 

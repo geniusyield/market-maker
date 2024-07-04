@@ -1,5 +1,9 @@
 # Revision history for geniusyield-market-maker
 
+## 0.6.1 -- 2024-07-04
+
+* Bug fix to resolve the behavior of `buildGetQuota` where it would result in an arithmetic underflow for TapTools provider when precision of commodity token is greater than that of ADA.
+
 ## 0.6.0 -- 2024-06-24
 
 * Utilise [`/token/prices`](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1prices/post) api endpoint instead of [`/token/ohlcv`](https://openapi.taptools.io/#tag/Market-Tokens/paths/~1token~1ohlcv/get) for TapTools price provider.

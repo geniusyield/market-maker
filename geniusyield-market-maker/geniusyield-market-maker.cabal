@@ -131,6 +131,7 @@ library geniusyield-market-maker-lib
   exposed-modules:
     GeniusYield.MarketMaker.Constants
     GeniusYield.MarketMaker.Equity
+    GeniusYield.MarketMaker.Logging
     GeniusYield.MarketMaker.MakerBot
     GeniusYield.MarketMaker.MakerBotConfig
     GeniusYield.MarketMaker.Prices

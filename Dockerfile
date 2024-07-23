@@ -1,4 +1,4 @@
-FROM haskell:9.2.8-slim as builder
+FROM ghcr.io/geniusyield/haskell-base-image:9.2.8
 
 ENV LANG C.UTF-8
 

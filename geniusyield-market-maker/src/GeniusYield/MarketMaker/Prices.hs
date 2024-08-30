@@ -68,9 +68,6 @@ import           Servant.Client                            (ClientEnv)
 -- Configuration
 -------------------------------------------------------------------------------
 
--- TODO: https://github.com/geniusyield/market-maker/issues/86.
-deriving newtype instance (ToJSON a) => ToJSON (Confidential a)
-
 -- | PriceConfigV1 is deprecated
 data PriceConfigV1 = PriceConfigV1
   { pcApiKey     ∷ !(Confidential Text),

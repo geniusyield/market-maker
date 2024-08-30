@@ -1,6 +1,6 @@
 cabal-version:   3.4
 name:            geniusyield-market-maker
-version:         0.6.1
+version:         0.7.0
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 synopsis:
@@ -195,6 +195,7 @@ test-suite pproviders-status-sequence
                   , geniusyield-market-maker:{datasource-providers, orderbook-annset, geniusyield-market-maker-lib}
                   , geniusyield-orderbot-framework:common
                   , ghc-typelits-knownnat
+                  , katip
                   , maestro-sdk
                   , servant-client-core
                   , tasty

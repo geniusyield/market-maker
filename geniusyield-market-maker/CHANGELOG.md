@@ -1,5 +1,9 @@
 # Revision history for geniusyield-market-maker
 
+## 0.7.0 -- 2024-08-30
+
+* Updated Atlas & Maestro SDK version to not make use Maestro's recently deprecated protocol parameters & era summaries endpoint.
+
 ## 0.6.1 -- 2024-07-04
 
 * Bug fix to resolve the behavior of `buildGetQuota` where it would result in an arithmetic underflow for TapTools provider when precision of commodity token is greater than that of ADA.

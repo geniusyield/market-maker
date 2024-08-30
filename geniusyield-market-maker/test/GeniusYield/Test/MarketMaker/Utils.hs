@@ -1,8 +1,8 @@
 module GeniusYield.Test.MarketMaker.Utils where
 
-import           Data.List                         (isInfixOf, findIndex)
 import           Control.Concurrent.MVar
 import           Control.Monad.State               (StateT)
+import           Data.List                         (findIndex, isInfixOf)
 import           GeniusYield.MarketMaker.Constants (logNS)
 import           GeniusYield.Types
 
@@ -104,13 +104,13 @@ arePredicatesOrdered ps xs = case midxs of
     Nothing   -> (False, 0)
     Just idxs -> (isOrdered idxs, last idxs)
   where
-    midxs = sequenceA $ flip findIndex xs <$> ps
+    midxs = traverse (`findIndex` xs) ps
 
 areEventsOrdered :: [[a -> Bool]] -> [a] -> Bool
 areEventsOrdered [] _        = True
 areEventsOrdered (ps:pss) xs =
   let (b, i) = arePredicatesOrdered ps xs
-  in  if b then areEventsOrdered pss (drop (i + 1) xs) else False
+  in  (b && areEventsOrdered pss (drop (i + 1) xs))
 
 isPPStatus :: [Maybe Double] -> LogData -> Bool
 isPPStatus mbps ld = case ld of

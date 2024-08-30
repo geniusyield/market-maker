@@ -51,7 +51,7 @@ import           GeniusYield.OrderBot.OrderBook.AnnSet     (MultiAssetOrderBook,
                                                             withEachAsset)
 import           GeniusYield.OrderBot.Types
 import           GeniusYield.TxBuilder                     (GYTxQueryMonad (utxosAtAddress),
-                                                            runGYTxQueryMonadNode)
+                                                            runGYTxQueryMonadIO)
 import           GeniusYield.Types
 import           GHC.Natural                               (naturalFromInteger)
 
@@ -224,7 +224,7 @@ fixedSpreadVsMarketPriceStrategy
 
       (bp, maob) ← getOrderBookPrices pp [mmTokenPair] mp priceCheckThreshold
 
-      ownUtxos ← runGYTxQueryMonadNode nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
+      ownUtxos ← runGYTxQueryMonadIO nid providers $ utxosAtAddress userAddr Nothing -- Assumption: User addresses does not include order validator's address.
       let ownOrdersPerUser = getOwnOrders [mmTokenPair] [user] maob
           allOwnOrders = M.foldr (++) [] ownOrdersPerUser
           equityInOrders = foldMap' getEquityFromOrder allOwnOrders

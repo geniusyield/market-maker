@@ -1,5 +1,9 @@
 # Revision history for geniusyield-market-maker
 
+## 0.8.0 -- 2024-08-30
+
+* Conway era support. Note that this update is not compatible with Babbage era and so must be employed on Mainnet after Chang HF.
+
 ## 0.7.0 -- 2024-08-30
 
 * Updated Atlas & Maestro SDK version to not make use Maestro's recently deprecated protocol parameters & era summaries endpoint.

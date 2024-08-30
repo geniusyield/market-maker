@@ -1,6 +1,6 @@
 cabal-version:   3.4
 name:            geniusyield-market-maker
-version:         0.7.0
+version:         0.8.0
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 synopsis:

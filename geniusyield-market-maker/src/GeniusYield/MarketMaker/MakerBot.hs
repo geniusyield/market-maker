@@ -5,7 +5,8 @@ import           Control.Exception                  (Exception (displayException
                                                      Handler (Handler), catches)
 import           Control.Monad                      (forM_, forever)
 import           Control.Monad.Reader               (runReaderT)
-import           Control.Monad.State                (StateT (..), get, put, lift)
+import           Control.Monad.State                (StateT (..), get, lift,
+                                                     put)
 import           Data.List.Split                    (chunksOf)
 import qualified Data.Map.Strict                    as M
 import           GeniusYield.Api.Dex.Constants      (DEXInfo (..))
@@ -13,15 +14,14 @@ import           GeniusYield.Api.Dex.PartialOrder   (PartialOrderInfo (poiOwnerK
                                                      cancelMultiplePartialOrders',
                                                      partialOrders,
                                                      placePartialOrder)
-import           GeniusYield.Imports                (printf, (&), fromMaybe)
+import           GeniusYield.Imports                (fromMaybe, printf, (&))
 import           GeniusYield.MarketMaker.Constants  (awaitTxParams, logNS)
 import           GeniusYield.MarketMaker.Prices
 import           GeniusYield.MarketMaker.Strategies
 import           GeniusYield.MarketMaker.User
 import           GeniusYield.MarketMaker.Utils      (addrUser, pkhUser)
 import           GeniusYield.Providers.Common       (SubmitTxException)
-import           GeniusYield.Transaction            (BuildTxException)
-import           GeniusYield.TxBuilder
+import           GeniusYield.TxBuilder              hiding (User)
 import           GeniusYield.Types
 import           System.Exit
 
@@ -72,7 +72,7 @@ cancelAllOrders' MakerBot {mbUser} netId providers di = do
             gyLogInfo providers logNS "---------- Done for the block! -----------"
             gyAwaitTxConfirmed providers awaitTxParams tid
             go rest
-  partialOrderInfos ← runGYTxQueryMonadNode netId providers $ runReaderT (partialOrders (dexPORefs di)) di
+  partialOrderInfos ← runGYTxQueryMonadIO netId providers $ runReaderT (partialOrders (dexPORefs di)) di
   let userPkh = pkhUser mbUser & toPubKeyHash
       userPOIs = filter (\o → poiOwnerKey o == userPkh) $ M.elems partialOrderInfos
   go userPOIs
@@ -111,15 +111,12 @@ buildAndSubmitActions user@User {uColl, uStakeCred} providers netId ua di = flip
     let handlerCommon ∷ Exception e => e → IO ()
         handlerCommon = logWarn . displayException
 
-        be ∷ BuildTxException → IO ()
-        be = handlerCommon
-
         se ∷ SubmitTxException → IO ()
         se = handlerCommon
 
         me ∷ GYTxMonadException → IO ()
         me = handlerCommon
-     in [Handler be, Handler se, Handler me]
+     in [Handler se, Handler me]
 
   buildCommon txBody = do
     logInfo $ "Successfully built body for above action, tx id: " <> show (txBodyTxId txBody)
@@ -255,3 +252,6 @@ executeStrategy runStrategy mb netId providers pp di = do
     (evolveStrategy runStrategy mb netId providers pp di)
     MBReady
   return ()
+
+runGYTxMonadNode :: GYNetworkId -> GYProviders -> [GYAddress] -> GYAddress -> Maybe (GYTxOutRef, Bool) -> GYTxBuilderMonadIO (GYTxSkeleton v) -> IO GYTxBody
+runGYTxMonadNode nid providers addrs change collateral act = runGYTxBuilderMonadIO nid providers addrs change collateral $ act >>= buildTxBody

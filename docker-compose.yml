@@ -27,7 +27,7 @@ services:
         {
           "mbc_user": {
             "ur_mnemonic": "${SEED_PHRASE}",
-            "ur_coll": "${COLLATERAL_UTXO}"
+            "ur_coll": "${COLLATERAL_UTXO}",
             "ur_stake_address": "${STAKE_ADDRESS}"
           },
           "mbc_delay": 120000000,

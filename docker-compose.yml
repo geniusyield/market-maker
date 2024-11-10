@@ -26,7 +26,11 @@ services:
       MARKET_MAKER_CONFIG: |
         {
           "mbc_user": {
-            "ur_mnemonic": "${SEED_PHRASE}",
+            "ur_mnemonic": {
+                "mnemonic": ${SEED_PHRASE},
+                "acc_ix": 0,
+                "addr_ix": 0
+            },
             "ur_coll": "${COLLATERAL_UTXO}",
             "ur_stake_address": "${STAKE_ADDRESS}"
           },

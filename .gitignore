@@ -26,4 +26,4 @@ cabal.project.local~
 var/
 .envrc
 secrets/
-
+.env

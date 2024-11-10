@@ -66,10 +66,11 @@ After cloning the repository  only a few environment variables must be set. As s
 # Clone the repository:
 git clone git@github.com:geniusyield/market-maker.git
 cd market-maker
-# TODO: update the following values with your own configuration.
-export MAESTRO_API_KEY=aBcDefghijoXj3v0LB3txySofSPrP3Vf2
-export PAYMENT_SIGNING_KEY='{ "type": "PaymentSigningKeyShelley_ed25519", "description": "Payment Signing Key", "cborHex": "4210268dsb870d08s83a4cf6a4408240248ea551a35bb22bf443586c233ae56bc340" }'
-export COLLATERAL_UTXO=d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0
+cp ./.env.template ./.env
+
+# Update the .env files with your own values (including seed phrase and other configuration values):
+nano .env
+
 # Update the docker images:
 docker compose pull
 # Start the MM bot with your config:

@@ -6,7 +6,6 @@ services:
     environment:
       # Supported modes: MM for market making and CANCEL for canceling ALL the orders.
       MODE: ${MODE:-MM}
-      PAYMENT_SIGNING_KEY: ${PAYMENT_SIGNING_KEY}
       PROVIDER_CONFIG: |
          {
            "coreProvider": {
@@ -27,8 +26,13 @@ services:
       MARKET_MAKER_CONFIG: |
         {
           "mbc_user": {
-            "ur_s_key_path": "/root/payment-signing-key.skey",
-            "ur_coll": "${COLLATERAL_UTXO}"
+            "ur_mnemonic": {
+                "mnemonic": ${SEED_PHRASE},
+                "acc_ix": 0,
+                "addr_ix": 0
+            },
+            "ur_coll": "${COLLATERAL_UTXO}",
+            "ur_stake_address": "${STAKE_ADDRESS}"
           },
           "mbc_delay": 120000000,
           "mbc_price_config": {

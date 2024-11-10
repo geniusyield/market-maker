@@ -36,3 +36,6 @@ lint_check: requires_nix_shell
 requires_nix_shell:
 	@ [ "$(IN_NIX_SHELL)" ] || echo "The $(MAKECMDGOALS) target must be run from inside a nix shell"
 	@ [ "$(IN_NIX_SHELL)" ] || (echo "    run 'nix develop' first" && false)
+
+build:
+	docker build -t ghcr.io/geniusyield/market-maker:latest .

@@ -74,16 +74,21 @@ nano .env
 # Update the docker images:
 docker compose pull
 # Start the MM bot with your config:
-docker compose up
+docker compose up -d
+# Check the logs:
+docker compose logs mm
 ```
 
-As in the example above; the following environment variables must be specified before calling `docker compose up`:
+The variables must be specified in the `.env` file before calling `docker compose up -d`:
 - `MAESTRO_API_KEY`: The MAINNET API key to be used for accessing the Maestro services.
-- `PAYMENT_SIGNING_KEY`: The payment signing key to be used. Please see the [signing key generator](https://github.com/geniusyield/signing-key-generator) for details.
-- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as collateral UTxO.
+- `SEED_PHASE`: The seed phrase to be used.
+- `COLLATERAL_UTXO`: A suitable UTxO with 5 ADA to be used as collateral UTxO. (e.g.: `d235edd34566a425668a4751233dfc2c1cs23b11287340b202c35093433491df#0)
+- `STAKE_ADDRESS`: The stake address to be used. (e.g.: `stake1uhpdg7r5hjw5u2c59vtdgn3hmcjttlf8hdr5lx7ca5ut6rscues4h)
+
+For example values plase see the `.env.template` file.
 
 The configuration values used for these environment variables in the example above are just placeholders. These must be replaced by your own
-configuration values. A MAINNET Maestro API key is needed, a payment signing key must be generated and a collateral UTxO must be provided after
+configuration values. A MAINNET Maestro API key, a seed phrase and aa collateral UTxO must be provided after
 sending funds to the address given by the payment signing key and the (optional) stake address.
 
 In order to determine this address, you could use `cardano-cli address build`, but you can also just run the market maker - the address will be printed as the first log of "Info" severity:

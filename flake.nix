@@ -3,33 +3,99 @@
   inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-
   inputs.CHaP = {
-      url = "github:input-output-hk/cardano-haskell-packages?ref=repo";
+      url = "github:IntersectMBO/cardano-haskell-packages?ref=repo";
       flake = false;
     };
   outputs = { self, nixpkgs, flake-utils, haskellNix, CHaP }:
     let
       supportedSystems = [
-        "x86_64-linux"	"x86_64-darwin"	"aarch64-darwin"
+        "x86_64-linux" "x86_64-darwin" "aarch64-darwin"
       ];
     in
       flake-utils.lib.eachSystem supportedSystems (system:
       let
+        overlay = final: prev: {
+          haskell-nix = prev.haskell-nix // {
+            extraPkgconfigMappings = prev.haskell-nix.extraPkgconfigMappings // {
+                # String pkgconfig-depends names are mapped to lists of Nixpkgs package names
+                "libblst" = [ "blst" ];
+            };
+          };
+        };
+
         overlays = [ haskellNix.overlay
           (final: prev: {
+            webkitgtk = final.webkitgtk_4_0;
+            libsodium = with final; stdenv.mkDerivation rec {
+              pname = "libsodium";
+
+              src = fetchGit {
+                url = "https://github.com/IntersectMBO/libsodium";
+                rev = version;
+              };
+              version = "dbb48cce5429cb6585c9034f002568964f1ce567";
+
+              nativeBuildInputs = [ autoreconfHook ];
+
+              configureFlags = [ "--enable-static" ]
+                # Fixes a compilation failure: "undefined reference to `__memcpy_chk'". Note
+                # that the more natural approach of adding "stackprotector" to
+                # `hardeningDisable` does not resolve the issue.
+                ++ lib.optional stdenv.hostPlatform.isMinGW "CFLAGS=-fno-stack-protector";
+
+              outputs = [ "out" "dev" ];
+              separateDebugInfo = stdenv.isLinux && stdenv.hostPlatform.libc != "musl";
+
+              enableParallelBuilding = true;
+
+              doCheck = true;
+
+              meta = with lib; {
+                description = "A modern and easy-to-use crypto library - VRF fork";
+                homepage = "http://doc.libsodium.org/";
+                license = licenses.isc;
+                maintainers = [ "tdammers" "nclarke" ];
+                platforms = platforms.all;
+              };
+            };
+          })
+          (final: prev: {
             hixProject =
-              final.haskell-nix.hix.project {
+              final.haskell-nix.project' {
                 src = ./.;
-                evalSystem = system;
-                inputMap = { "https://input-output-hk.github.io/cardano-haskell-packages" = CHaP; };
+                compiler-nix-name = "ghc966";
+                # This is used by `nix develop .` to open a shell for use with
+                # `cabal`, `hlint` and `haskell-language-server`
+                shell.tools = {
+                  cabal = {};
+                  hlint = {};
+                  haskell-language-server = {};
+                  fourmolu = {};
+                };
+                # Non-Haskell shell tools go here
+                shell.buildInputs = with final; [
+                  nixpkgs-fmt
+                ];
+                # ???: Fix for `nix flake show --allow-import-from-derivation`
+                evalSystem = "x86_64-linux";
+                inputMap = { "https://chap.intersectmbo.org/" = CHaP; };
+                modules = with final; [{
+                  packages.postgresql-libpq-configure.components.library.libs = lib.mkForce [ [ postgresql ] ];
+                }];
               };
           })
+          overlay
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
         flake = pkgs.hixProject.flake {};
       in flake // {
         legacyPackages = pkgs;
+        # Built by `nix build .`
+        # TODO: packages.default = flake.packages."geniusyield-market-maker:exe:geniusyield-market-maker-exe";
+        packages = flake.packages // {
+          default = flake.packages."geniusyield-annset:test:geniusyield-annset-tests";
+        };
       });
   # --- Flake Local Nix Configuration ----------------------------
   nixConfig = {

@@ -127,7 +127,7 @@ library geniusyield-market-maker-lib
   import:           common-lang
   import:           common-deps
   import:           common-ghc-opts
-  hs-source-dirs:   src
+  hs-source-dirs:   src impl/datasource-providers impl/orderbook-annset test
   exposed-modules:
     GeniusYield.MarketMaker.Constants
     GeniusYield.MarketMaker.Equity
@@ -201,4 +201,4 @@ test-suite pproviders-status-sequence
                   , tasty
                   , tasty-hunit
   mixins:
-    geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)  
+    geniusyield-market-maker:orderbook-annset requires (GeniusYield.OrderBot.DataSource as GeniusYield.OrderBot.DataSource.Providers)
